@@ -28,42 +28,47 @@ class Net(nn.Module):
         self.resize1 = Resize([13,13])
         # 256, 13, 13
         self.dec1 = nn.Sequential(
-            nn.Conv2d(257, 64, 3, 1, padding=1), # 64, 13, 13
+            nn.Conv2d(260, 64, 3, 1, padding=1), # 64, 13, 13
             nn.BatchNorm2d(64, track_running_stats=True),
             nn.ReLU(inplace=True),
             nn.Upsample(scale_factor=2) # 64, 26, 26
             )
         self.resize2 = Resize([26,26])
         self.dec2 = nn.Sequential(
-            nn.Conv2d(65, 16, 3, 1, padding=1), # 16, 26, 26
+            nn.Conv2d(68, 16, 3, 1, padding=1), # 16, 26, 26
             nn.BatchNorm2d(16, track_running_stats=True),
             nn.ReLU(inplace=True),
             nn.Upsample(scale_factor=3) # 16, 78, 78
             )
         self.resize3 = Resize([78,78])
         self.dec3 = nn.Sequential(
-            nn.Conv2d(17, 4, 3, 1, padding=1), # 4, 78, 78
+            nn.Conv2d(20, 4, 3, 1, padding=1), # 4, 78, 78
             nn.BatchNorm2d(4, track_running_stats=True),
             nn.ReLU(inplace=True),
             nn.Upsample(size=(227,227)) # 4, 227, 227
             )
-        self.dec4 = nn.Conv2d(5, 3, 3, 1, padding=1) # 3, 227, 227
+        self.dec4 = nn.Conv2d(8, 3, 3, 1, padding=1) # 3, 227, 227
     
     def forward(self, key0, keyT, face0, faceT):
         
+        img0 = face0.clone(); imgT = faceT.clone()
         face0 = self.enc(face0); faceT = self.enc(faceT)
         
         # !!! remember to concatenate 0 to T and vice-versa
-        face0 = torch.cat((face0,self.resize1(keyT)), 1); faceT = torch.cat((faceT,self.resize1(key0)), 1)
+        face0 = torch.cat((face0,self.resize1(keyT),self.resize1(img0)), 1)
+        faceT = torch.cat((faceT,self.resize1(key0),self.resize1(imgT)), 1)
         face0 = self.dec1(face0); faceT = self.dec1(faceT)
         
-        face0 = torch.cat((face0,self.resize2(keyT)), 1); faceT = torch.cat((faceT,self.resize2(key0)), 1)
+        face0 = torch.cat((face0,self.resize2(keyT),self.resize2(img0)), 1)
+        faceT = torch.cat((faceT,self.resize2(key0),self.resize2(imgT)), 1)
         face0 = self.dec2(face0); faceT = self.dec2(faceT)
         
-        face0 = torch.cat((face0,self.resize3(keyT)), 1); faceT = torch.cat((faceT,self.resize3(key0)), 1)
+        face0 = torch.cat((face0,self.resize3(keyT),self.resize3(img0)), 1)
+        faceT = torch.cat((faceT,self.resize3(key0),self.resize3(imgT)), 1)
         face0 = self.dec3(face0); faceT = self.dec3(faceT)
         
-        face0 = torch.cat((face0,keyT), 1); faceT = torch.cat((faceT,key0), 1)
+        face0 = torch.cat((face0,keyT,img0), 1)
+        faceT = torch.cat((faceT,key0,imgT), 1)
         face0 = self.dec4(face0); faceT = self.dec4(faceT)
         
         return face0, faceT
