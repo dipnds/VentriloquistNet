@@ -10,7 +10,7 @@ from dataprep import prep
 import networks.network3 as network
 
 batch_size = 16
-epochs = 20
+epochs = 50
 log_nth = 50; plot_nth = 100
 
 # device = torch.device('cpu')
@@ -18,7 +18,7 @@ device = torch.device('cuda:0')
 
 modelpath = 'models/'
 datapath = '/media/deepan/Backup/thesis/dataset_voxceleb/triplets/'
-tr_set = prep(datapath,'eval')
+tr_set = prep(datapath,'train')
 ev_set = prep(datapath,'eval')
 tr_loader = DataLoader(tr_set,batch_size=batch_size,shuffle=True,num_workers=4)
 ev_loader = DataLoader(ev_set,batch_size=batch_size,shuffle=True,num_workers=4)
@@ -39,11 +39,13 @@ def train(model, epoch, best_loss):
         face0 = face0.to(device); faceT = faceT.to(device)
         
         optimizer.zero_grad()
-        faceP0, facePT = model(sketch0,sketchT,face0,faceT)
-        loss1 = criterion1(faceT,faceP0) + criterion1(face0,facePT)
+        # faceP0, facePT = model(sketch0,sketchT,face0,faceT)
+        # loss1 = criterion1(faceT,faceP0) + criterion1(face0,facePT)
         # loss2 = criterion2(faceT,keyT) + criterion2(facePT,key0)
-        # loss3 = criterion1(faceT,facePT) + criterion1(face0,faceP0)
-        loss = loss1# + loss2 - loss3
+        # loss = loss1 + loss2 - loss3
+        # !!! Net3
+        faceP0, faceT_resize, deform_resize, deform = model(sketch0,sketchT,face0,faceT)
+        loss = criterion1(faceT,faceP0) + criterion1(faceT_resize,deform_resize)
         loss.backward()
         optimizer.step()
         
@@ -65,8 +67,11 @@ def train(model, epoch, best_loss):
     vis_img = torch.cat((vis_img,
                          (face0[0].detach().cpu() * 255*std_face + mean_face)/255,
                          (faceT[0].detach().cpu() * 255*std_face + mean_face)/255,
-                         (faceP0[0].detach().cpu() * 255*std_face + mean_face)/255),
+                         (faceP0[0].detach().cpu() * 255*std_face + mean_face)/255,
+                         (deform[0].detach().cpu() * 255*std_face + mean_face)/255
+                         ),
                          axis=1)
+    writer.add_image('Face/tr', vis_img, epoch)
     writer.add_image('Face/tr', vis_img, epoch)
     
     tr_loss = np.mean(tr_loss)
@@ -91,11 +96,13 @@ def eval(model, epoch, best_loss, scheduler):
             sketch0 = sketch0.to(device); sketchT = sketchT.to(device)
             face0 = face0.to(device); faceT = faceT.to(device)
                 
-            faceP0, facePT = model(sketch0,sketchT,face0,faceT)
-            loss1 = criterion1(faceT,faceP0) + criterion1(face0,facePT)
+            # faceP0, facePT = model(sketch0,sketchT,face0,faceT)
+            # loss1 = criterion1(faceT,faceP0) + criterion1(face0,facePT)
             # loss2 = criterion2(faceT,faceP0) + criterion2(face0,facePT)
             # loss3 = criterion1(faceT,facePT) + criterion1(face0,faceP0)
-            loss = loss1# + loss2 - loss3
+            # loss = loss1 + loss2 - loss3
+            faceP0, faceT_resize, deform_resize, deform = model(sketch0,sketchT,face0,faceT)
+            loss = criterion1(faceT,faceP0) + criterion1(faceT_resize,deform_resize)
             
             ev_loss.append(loss.detach().item())
             if (batch+1)%(log_nth/2) == 0:
@@ -113,7 +120,9 @@ def eval(model, epoch, best_loss, scheduler):
         vis_img = torch.cat((vis_img,
                              (face0[0].detach().cpu() * 255*std_face + mean_face)/255,
                              (faceT[0].detach().cpu() * 255*std_face + mean_face)/255,
-                             (faceP0[0].detach().cpu() * 255*std_face + mean_face)/255),
+                             (faceP0[0].detach().cpu() * 255*std_face + mean_face)/255,
+                             (deform[0].detach().cpu() * 255*std_face + mean_face)/255
+                             ),
                             axis=1)
         writer.add_image('Face/ev', vis_img, epoch)
         
@@ -130,7 +139,6 @@ def eval(model, epoch, best_loss, scheduler):
 
 model = network.Net().to(device)
 criterion1 = nn.MSELoss(reduction='mean')
-# criterion1 = nn.MSELoss(reduction='mean')
 # criterion2 = network.faceKP(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-4, betas=(0.9,0.999), eps=1e-8)
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.1)

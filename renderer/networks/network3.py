@@ -49,7 +49,7 @@ class Net(nn.Module):
             )
         self.final = nn.Conv2d(96+3, 3, 3, 1, padding=1)
         
-        self.shift2to5 = nn.Sequential(
+        self.shift_1 = nn.Sequential(
             nn.Conv2d(2, 16, 5, 2, 2),
             nn.ReLU(inplace=True),
             nn.Conv2d(16, 32, 3, 1, 1),
@@ -59,7 +59,7 @@ class Net(nn.Module):
             nn.ReLU(inplace=True),
             nn.Linear(128, 6)
             )
-        self.shift1 = nn.Sequential(
+        self.shift_final = nn.Sequential(
             nn.Conv2d(2, 16, 7, 3, 3),
             nn.ReLU(inplace=True),
             nn.Conv2d(16, 32, 3, 1, 1),
@@ -72,13 +72,14 @@ class Net(nn.Module):
             nn.Linear(256, 6)
             )
         
-        self.unfold = nn.Unfold(kernel_size=(75, 75),stride=38)
+        self.unfold = nn.Unfold(kernel_size=(75, 75),stride=38) # (227-75)/38 + 1 = 5
+        self.fold = nn.Fold((227,227),kernel_size=(75, 75),stride=38)
     
-    def unroll(self, t):
+    def unroll(self, t, numCh):
         t = self.unfold(t)
-        t = t.view(-1,1,75,75,5)
+        t = t.view(-1,numCh,75,75,5*5)
         t = t.permute(0,4,1,2,3)
-        t = t.reshape(-1,1,75,75)
+        t = t.reshape(-1,numCh,75,75)
         return t
     
     def deform(self, theta, t):
@@ -91,27 +92,35 @@ class Net(nn.Module):
         # for now, it is 1-way, i.e. face0 -> faceT, but not vice versa
         
         img0 = face0.clone() # 227
+        
+        # initialise theta to the 'no affine transform' case, predict residues
+        # [[1 0 0]
+        #   0 1 0]]
+        theta_init = torch.zeros(1,2,3)
+        theta_init[0,0,0] = 1; theta_init[0,1,1] = 1
+        
         face0_1 = self.enc1(face0) # 27
         face0_2 = self.enc2(face0_1) # 13
         face0_3 = self.enc3(face0_2) # 13
         face0_4 = self.enc4(face0_3) # 13
         
         # sketch resize, estimate theta for flow
-        sketch0_2 = self.resize2(sketch0); sketchT_2 = self.resize2(sketchT)
-        theta2to5 = self.shift2to5(torch.cat((sketch0_2,sketchT_2),axis=1))
-        theta2to5 = theta2to5.reshape(-1,2,3)
+        sketch0_1 = self.resize1(sketch0); sketchT_1 = self.resize1(sketchT)
+        theta_1 = self.shift_1(torch.cat((sketch0_1,sketchT_1),axis=1))
+        theta_1 = theta_1.reshape(-1,2,3) + theta_init
         
         # deform feature maps
-        face0_2 = self.deform(theta2to5,face0_2)
-        face0_3 = self.deform(theta2to5,face0_3)
-        face0_4 = self.deform(theta2to5,face0_4)
+        face0_1 = self.deform(theta_1,face0_1)
+        face0_2 = self.deform(theta_1,face0_2)
+        face0_3 = self.deform(theta_1,face0_3)
+        face0_4 = self.deform(theta_1,face0_4)
         
         # deform face
         img0_2 = self.resize2(img0)
-        img0_2 = self.deform(theta2to5, img0_2)
+        img0_2 = self.deform(theta_1, img0_2)
         
         img0_1 = self.resize1(img0)
-        img0_1 = self.deform(theta2to5, img0_1)
+        img0_1 = self.deform(theta_1, img0_1)
 
         # !!! remember to concatenate 0 to T and vice-versa
         
@@ -125,13 +134,23 @@ class Net(nn.Module):
         face0_1 = self.dec1(face0_1) # 227
         
         # unroll sketches into blocks and estimate theta per block
-        sketch0 = self.unroll(sketch0); sketchT = self.unroll(sketchT)
-        print(sketch0.shape,sketchT.shape)
-        theta1 = self.shift1(torch.cat((sketch0,sketchT),axis=1))
+        sketch0 = self.unroll(sketch0,1); sketchT = self.unroll(sketchT,1)
+        theta_final = self.shift_final(torch.cat((sketch0,sketchT),axis=1))
+        theta_final = theta_final.reshape(-1,2,3) + theta_init
         
-        return face0, faceT
-    
-    
+        # unroll image, deform, then roll back
+        img0 = self.unroll(img0,3)
+        img0 = self.deform(theta_final,img0)
+        img0 = img0.reshape(-1,5*5,3,75,75)
+        img0 = img0.permute(0,2,3,4,1)
+        img0 = img0.view(face0.shape[0],-1,5*5)
+        img0 = self.fold(img0)
+                
+        face0 = torch.cat((face0_1,img0), 1) # 227
+        face0 = self.final(face0) # 227
+        
+        return face0, self.resize1(faceT), img0_1, img0
+    # Can add MSE loss on img0 and img0_1, (perceptual + identity + style + edge + ...) loss on face0
     
     @property
     def is_cuda(self):
