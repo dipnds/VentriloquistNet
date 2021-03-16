@@ -74,6 +74,12 @@ class Net(nn.Module):
         
         self.unfold = nn.Unfold(kernel_size=(75, 75),stride=38) # (227-75)/38 + 1 = 5
         self.fold = nn.Fold((227,227),kernel_size=(75, 75),stride=38)
+        
+        # initialise theta to the 'no affine transform' case, predict residues
+        # [[1 0 0]
+        #   0 1 0]]
+        # self.theta_init = torch.zeros(1,2,3).to(torch.device('cuda:0'))
+        # self.theta_init[0,0,0] = 1; self.theta_init[0,1,1] = 1
     
     def unroll(self, t, numCh):
         t = self.unfold(t)
@@ -93,12 +99,6 @@ class Net(nn.Module):
         
         img0 = face0.clone() # 227
         
-        # initialise theta to the 'no affine transform' case, predict residues
-        # [[1 0 0]
-        #   0 1 0]]
-        theta_init = torch.zeros(1,2,3)
-        theta_init[0,0,0] = 1; theta_init[0,1,1] = 1
-        
         face0_1 = self.enc1(face0) # 27
         face0_2 = self.enc2(face0_1) # 13
         face0_3 = self.enc3(face0_2) # 13
@@ -107,7 +107,7 @@ class Net(nn.Module):
         # sketch resize, estimate theta for flow
         sketch0_1 = self.resize1(sketch0); sketchT_1 = self.resize1(sketchT)
         theta_1 = self.shift_1(torch.cat((sketch0_1,sketchT_1),axis=1))
-        theta_1 = theta_1.reshape(-1,2,3) + theta_init
+        theta_1 = theta_1.reshape(-1,2,3) # + self.theta_init
         
         # deform feature maps
         face0_1 = self.deform(theta_1,face0_1)
@@ -136,7 +136,7 @@ class Net(nn.Module):
         # unroll sketches into blocks and estimate theta per block
         sketch0 = self.unroll(sketch0,1); sketchT = self.unroll(sketchT,1)
         theta_final = self.shift_final(torch.cat((sketch0,sketchT),axis=1))
-        theta_final = theta_final.reshape(-1,2,3) + theta_init
+        theta_final = theta_final.reshape(-1,2,3) # + self.theta_init
         
         # unroll image, deform, then roll back
         img0 = self.unroll(img0,3)

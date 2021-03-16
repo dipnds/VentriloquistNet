@@ -20,7 +20,7 @@ class prep(Dataset):
         self.std_face = norm['std_face']
         self.std_face = torch.unsqueeze(torch.unsqueeze(self.std_face, 0), 0)
         
-        self.resize = Resize([227,227]) # required by pre trained encoder
+        self.resize = Resize([224,224]) # required by pre trained encoder
 
     def __len__(self):
         return len(self.datalist)
