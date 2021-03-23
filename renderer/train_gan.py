@@ -3,18 +3,12 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from datetime import datetime
-import matplotlib
-#matplotlib.use('agg')
-from matplotlib import pyplot as plt
-plt.ion()
 import os
 
 from dataset.dataset_class import PreprocessDataset
-from dataset.video_extraction_conversion import *
-from loss.loss_discriminator import *
-from loss.loss_generator import *
-from network.blocks import *
-from network.model import *
+from loss.loss_discriminator import LossDSCreal, LossDSCfake
+from loss.loss_generator import LossG
+from networks.gan import Embedder, Generator, Discriminator
 from tqdm import tqdm
 
 from params.params import K, path_to_chkpt, path_to_backup, path_to_Wi, batch_size, path_to_preprocess, frame_shape
@@ -105,8 +99,8 @@ D.train()
 """Training"""
 batch_start = datetime.now()
 pbar = tqdm(dataLoader, leave=True, initial=0)
-if not display_training:
-    matplotlib.use('agg')
+# if not display_training:
+#     matplotlib.use('agg')
 
 
 for epoch in range(epochCurrent, num_epochs):
@@ -205,34 +199,34 @@ for epoch in range(epochCurrent, num_epochs):
             #          lossD.item(), lossG.item(), r.mean(), r_hat.mean()))
             pbar.set_postfix(epoch=epoch, r=r.mean().item(), rhat=r_hat.mean().item(), lossG=lossG.item())
 
-            if display_training:
-                plt.figure(figsize=(10,10))
-                plt.clf()
-                out = (x_hat[0]*255).transpose(0,2)
-                for img_no in range(1,x_hat.shape[0]//16):
-                    out = torch.cat((out, (x_hat[img_no]*255).transpose(0,2)), dim = 1)
-                out = out.type(torch.int32).to(cpu).numpy()
-                fig = out
+            # if display_training:
+            #     plt.figure(figsize=(10,10))
+            #     plt.clf()
+            #     out = (x_hat[0]*255).transpose(0,2)
+            #     for img_no in range(1,x_hat.shape[0]//16):
+            #         out = torch.cat((out, (x_hat[img_no]*255).transpose(0,2)), dim = 1)
+            #     out = out.type(torch.int32).to(cpu).numpy()
+            #     fig = out
 
-                plt.clf()
-                out = (x[0]*255).transpose(0,2)
-                for img_no in range(1,x.shape[0]//16):
-                    out = torch.cat((out, (x[img_no]*255).transpose(0,2)), dim = 1)
-                out = out.type(torch.int32).to(cpu).numpy()
-                fig = np.concatenate((fig, out), 0)
+            #     plt.clf()
+            #     out = (x[0]*255).transpose(0,2)
+            #     for img_no in range(1,x.shape[0]//16):
+            #         out = torch.cat((out, (x[img_no]*255).transpose(0,2)), dim = 1)
+            #     out = out.type(torch.int32).to(cpu).numpy()
+            #     fig = np.concatenate((fig, out), 0)
 
-                plt.clf()
-                out = (g_y[0]*255).transpose(0,2)
-                for img_no in range(1,g_y.shape[0]//16):
-                    out = torch.cat((out, (g_y[img_no]*255).transpose(0,2)), dim = 1)
-                out = out.type(torch.int32).to(cpu).numpy()
+            #     plt.clf()
+            #     out = (g_y[0]*255).transpose(0,2)
+            #     for img_no in range(1,g_y.shape[0]//16):
+            #         out = torch.cat((out, (g_y[img_no]*255).transpose(0,2)), dim = 1)
+            #     out = out.type(torch.int32).to(cpu).numpy()
                 
-                fig = np.concatenate((fig, out), 0)
-                plt.imshow(fig)
-                plt.xticks([])
-                plt.yticks([])
-                plt.draw()
-                plt.pause(0.001)
+            #     fig = np.concatenate((fig, out), 0)
+            #     plt.imshow(fig)
+            #     plt.xticks([])
+            #     plt.yticks([])
+            #     plt.draw()
+            #     plt.pause(0.001)
             
             
 
@@ -240,11 +234,11 @@ for epoch in range(epochCurrent, num_epochs):
             lossesD.append(lossD.item())
             lossesG.append(lossG.item())
 
-            if display_training:
-                plt.clf()
-                plt.plot(lossesG) #blue
-                plt.plot(lossesD) #orange
-                plt.show()
+            # if display_training:
+            #     plt.clf()
+            #     plt.plot(lossesG) #blue
+            #     plt.plot(lossesD) #orange
+            #     plt.show()
 
             print('Saving latest...')
             torch.save({
@@ -263,7 +257,7 @@ for epoch in range(epochCurrent, num_epochs):
             for img_no in range(1,2):
                 out = torch.cat((out, (x_hat[img_no]*255).transpose(0,2)), dim = 1)
             out = out.type(torch.uint8).to(cpu).numpy()
-            plt.imsave("recent.png", out)
+            # plt.imsave("recent.png", out)
             print('...Done saving latest')
             
     if epoch%1 == 0:
@@ -284,5 +278,5 @@ for epoch in range(epochCurrent, num_epochs):
         for img_no in range(1,2):
             out = torch.cat((out, (x_hat[img_no]*255).transpose(0,2)), dim = 1)
         out = out.type(torch.uint8).to(cpu).numpy()
-        plt.imsave("recent_backup.png", out)
+        # plt.imsave("recent_backup.png", out)
         print('...Done saving latest')
