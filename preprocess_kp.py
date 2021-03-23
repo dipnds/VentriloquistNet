@@ -1,17 +1,15 @@
 import os
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
 from torchvision.io import read_video
 import csv
-import pickle as pkl
 from scipy.optimize import curve_fit
 import warnings
-import time
+import tqdm
 
 import face_alignment
 
-path_root = ''
+path_root = '/storage/user/dasd/vox2/dev/'
 path_in = path_root+'mp4/'
 path_out = path_root+'processed/'
 
@@ -70,6 +68,9 @@ def kp2sketch(kp,h,w):
     return sketch
     
 def processing_loop(person_list, path_in, path_out, fa):
+    
+    person_list = tqdm.tqdm(person_list,total=len(person_list))
+    
     for person in person_list:
         if os.path.isdir(path_in+person):
             vid_list = os.listdir(path_in+person)
@@ -86,7 +87,6 @@ def processing_loop(person_list, path_in, path_out, fa):
                     os.makedirs(path_out+person+'/'+vid+'/')
                 
                 for utter in utter_list:
-                    start = time.time()
                     (frame,_,_) = read_video(path_in+person+'/'+vid+'/'+utter,
                                              0,2.55,pts_unit='sec') # 64 frames
                     frame = frame.permute(0,3,1,2)
@@ -104,7 +104,6 @@ def processing_loop(person_list, path_in, path_out, fa):
                     
                     torch.save(frame,path_out+person+'/'+vid+'/'+'face_'+utter+'.pt')
                     torch.save(sample,path_out+person+'/'+vid+'/'+'sketch_'+utter+'.pt')
-                    print(time.time() - start)
     return 0
                     
 ## main
@@ -128,4 +127,7 @@ fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D,flip_input=Fa
                                   device='cuda',face_detector='blazeface') # default 'sfd'
 
 # loop over subsets
-processing_loop(id_list['train'], path_in, path_out, fa)
+a = 5650; b = 5874
+print(a,b)
+processing_loop(id_list['train'][a:b], path_in, path_out, fa)
+# processing_loop(id_list['test'], path_in, path_out, fa)
