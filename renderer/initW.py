@@ -1,7 +1,7 @@
 import torch
 import os
 
-path = '../processed'
+path = '/storage/user/dasd/vox2/dev/processed'
 
 for person in os.listdir(path):
     for vid in os.listdir(path+'/'+person):
