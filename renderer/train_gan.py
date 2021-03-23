@@ -1,150 +1,288 @@
-from torch.utils.data import DataLoader
-import torch.optim as optim
 import torch
-from torch.utils.tensorboard import SummaryWriter
 import torch.nn as nn
-import os, tqdm
-import numpy as np
+import torch.optim as optim
+from torch.utils.data import DataLoader
+from datetime import datetime
+import matplotlib
+#matplotlib.use('agg')
+from matplotlib import pyplot as plt
+plt.ion()
+import os
 
-from dataprep import prep
-import networks.network3 as network
+from dataset.dataset_class import PreprocessDataset
+from dataset.video_extraction_conversion import *
+from loss.loss_discriminator import *
+from loss.loss_generator import *
+from network.blocks import *
+from network.model import *
+from tqdm import tqdm
 
-batch_size = 16
-epochs = 50
-log_nth = 50; plot_nth = 100
+from params.params import K, path_to_chkpt, path_to_backup, path_to_Wi, batch_size, path_to_preprocess, frame_shape
 
-# device = torch.device('cpu')
-device = torch.device('cuda:0')
+"""Create dataset and net"""
+display_training = False
+device = torch.device("cuda:0")
+cpu = torch.device("cpu")
+dataset = PreprocessDataset(K=K, path_to_preprocess=path_to_preprocess, path_to_Wi=path_to_Wi)
+dataLoader = DataLoader(dataset, batch_size=batch_size, shuffle=True,
+                        num_workers=16,
+                        pin_memory=True,
+                        drop_last = True)
 
-modelpath = 'models/'
-datapath = '/media/deepan/Backup/thesis/dataset_voxceleb/triplets/'
-tr_set = prep(datapath,'train')
-ev_set = prep(datapath,'eval')
-tr_loader = DataLoader(tr_set,batch_size=batch_size,shuffle=True,num_workers=4)
-ev_loader = DataLoader(ev_set,batch_size=batch_size,shuffle=True,num_workers=4)
+G = nn.DataParallel(Generator(frame_shape).to(device))
+E = nn.DataParallel(Embedder(frame_shape).to(device))
+D = nn.DataParallel(Discriminator(dataset.__len__(), path_to_Wi).to(device))
 
-name = network.__name__.split('.')[1]
-writer = SummaryWriter(comment=name)
+G.train()
+E.train()
+D.train()
 
-def train(model, epoch, best_loss):
-    
-    model.train()
-    tr_loss = []
-    tr_batch = tqdm.tqdm(enumerate(tr_loader),total=len(tr_loader))
-    
-    for batch, triplet in tr_batch:
-        sketch0 = triplet['sketch0']; sketchT = triplet['sketchT']
-        face0 = triplet['face0']; faceT = triplet['faceT']
-        sketch0 = sketch0.to(device); sketchT = sketchT.to(device)
-        face0 = face0.to(device); faceT = faceT.to(device)
+
+optimizerG = optim.Adam(params = list(E.parameters()) + list(G.parameters()),
+                        lr=5e-5,
+                        amsgrad=False)
+optimizerD = optim.Adam(params = D.parameters(),
+                        lr=2e-4,
+                        amsgrad=False)
+
+"""Criterion"""
+criterionG = LossG(VGGFace_body_path='Pytorch_VGGFACE_IR.py',
+                   VGGFace_weight_path='Pytorch_VGGFACE.pth', device=device)
+criterionDreal = LossDSCreal()
+criterionDfake = LossDSCfake()
+
+
+"""Training init"""
+epochCurrent = epoch = i_batch = 0
+lossesG = []
+lossesD = []
+i_batch_current = 0
+
+num_epochs = 75*5
+
+#initiate checkpoint if inexistant
+if not os.path.isfile(path_to_chkpt):
+    def init_weights(m):
+        if type(m) == nn.Conv2d:
+            torch.nn.init.xavier_uniform(m.weight)
+    G.apply(init_weights)
+    D.apply(init_weights)
+    E.apply(init_weights)
+
+    print('Initiating new checkpoint...')
+    torch.save({
+            'epoch': epoch,
+            'lossesG': lossesG,
+            'lossesD': lossesD,
+            'E_state_dict': E.module.state_dict(),
+            'G_state_dict': G.module.state_dict(),
+            'D_state_dict': D.module.state_dict(),
+            'num_vid': dataset.__len__(),
+            'i_batch': i_batch,
+            'optimizerG': optimizerG.state_dict(),
+            'optimizerD': optimizerD.state_dict()
+            }, path_to_chkpt)
+    print('...Done')
+
+
+"""Loading from past checkpoint"""
+checkpoint = torch.load(path_to_chkpt, map_location=cpu)
+E.module.load_state_dict(checkpoint['E_state_dict'])
+G.module.load_state_dict(checkpoint['G_state_dict'], strict=False)
+D.module.load_state_dict(checkpoint['D_state_dict'])
+epochCurrent = checkpoint['epoch']
+lossesG = checkpoint['lossesG']
+lossesD = checkpoint['lossesD']
+num_vid = checkpoint['num_vid']
+i_batch_current = checkpoint['i_batch'] +1
+optimizerG.load_state_dict(checkpoint['optimizerG'])
+optimizerD.load_state_dict(checkpoint['optimizerD'])
+
+G.train()
+E.train()
+D.train()
+
+"""Training"""
+batch_start = datetime.now()
+pbar = tqdm(dataLoader, leave=True, initial=0)
+if not display_training:
+    matplotlib.use('agg')
+
+
+for epoch in range(epochCurrent, num_epochs):
+    if epoch > epochCurrent:
+        i_batch_current = 0
+        pbar = tqdm(dataLoader, leave=True, initial=0)
+    pbar.set_postfix(epoch=epoch)
+    for i_batch, (f_lm, x, g_y, i, W_i) in enumerate(pbar, start=0):
         
-        optimizer.zero_grad()
-        # faceP0, facePT = model(sketch0,sketchT,face0,faceT)
-        # loss1 = criterion1(faceT,faceP0) + criterion1(face0,facePT)
-        # loss2 = criterion2(faceT,keyT) + criterion2(facePT,key0)
-        # loss = loss1 + loss2 - loss3
-        # !!! Net3
-        faceP0, faceT_resize, deform_resize, deform = model(sketch0,sketchT,face0,faceT)
-        loss = criterion1(faceT,faceP0) + criterion1(faceT_resize,deform_resize)
-        loss.backward()
-        optimizer.step()
+        f_lm = f_lm.to(device)
+        x = x.to(device)
+        g_y = g_y.to(device)
+        W_i = W_i.squeeze(-1).transpose(0,1).to(device).requires_grad_()
         
-        # print('GT', keyT.mean().cpu().numpy(), keyT.std().cpu().numpy())
-        # print('P', keyP.mean().detach().cpu().numpy(), keyP.std().detach().cpu().numpy())
+        D.module.load_W_i(W_i)
         
-        tr_loss.append(loss.detach().item())
-        if (batch+1)%log_nth == 0:
-            tr_batch.set_description(f'Tr E:{epoch+1}, B:{batch+1}, L:{np.mean(tr_loss):.2E}')
-        if (batch+1)%plot_nth == 0:
-            writer.add_scalar('Loss/tr', np.mean(tr_loss), epoch+batch/len(tr_loader))
-    
-    norm = torch.load('../norm.pt')
-    mean_face = torch.unsqueeze(torch.unsqueeze(norm['mean_face'], 1), 2)
-    std_face = torch.unsqueeze(torch.unsqueeze(norm['std_face'], 1), 2)
-    vis_img = torch.zeros(3,sketch0.shape[2],sketch0.shape[3])
-    vis_img[0,:,:] = vis_img[0,:,:] + sketch0[0].detach().cpu()
-    vis_img[2,:,:] = vis_img[2,:,:] + sketchT[0].detach().cpu()
-    vis_img = torch.cat((vis_img,
-                         (face0[0].detach().cpu() * 255*std_face + mean_face)/255,
-                         (faceT[0].detach().cpu() * 255*std_face + mean_face)/255,
-                         (faceP0[0].detach().cpu() * 255*std_face + mean_face)/255,
-                         (deform[0].detach().cpu() * 255*std_face + mean_face)/255
-                         ),
-                         axis=1)
-    writer.add_image('Face/tr', vis_img, epoch)
-    writer.add_image('Face/tr', vis_img, epoch)
-    
-    tr_loss = np.mean(tr_loss)
-    if best_loss is None or tr_loss < best_loss:
-        best_loss = tr_loss
-        torch.save(model, modelpath+'bestTr_'+name+'.model')
-        
-    # if epoch == epochs:
-    #     sample = {'face0':face0, 'faceT':faceT, 'faceP0':faceP0, 'facePT':facePT}
-    #     torch.save(sample, 'trsample.pt')
+        if i_batch % 1 == 0:
+            with torch.autograd.enable_grad():
+                #zero the parameter gradients
+                optimizerG.zero_grad()
+                optimizerD.zero_grad()
 
-def eval(model, epoch, best_loss, scheduler):
-    
-    model.eval()
-    ev_loss = []
-    with torch.no_grad():
-        ev_batch = tqdm.tqdm(enumerate(ev_loader),total=len(ev_loader))
-        
-        for batch, triplet in ev_batch:
-            sketch0 = triplet['sketch0']; sketchT = triplet['sketchT']
-            face0 = triplet['face0']; faceT = triplet['faceT']
-            sketch0 = sketch0.to(device); sketchT = sketchT.to(device)
-            face0 = face0.to(device); faceT = faceT.to(device)
+                #forward
+                # Calculate average encoding vector for video
+                f_lm_compact = f_lm.view(-1, f_lm.shape[-4], f_lm.shape[-3], f_lm.shape[-2], f_lm.shape[-1]) #BxK,2,3,224,224
+
+                e_vectors = E(f_lm_compact[:,0,:,:,:], f_lm_compact[:,1,:,:,:]) #BxK,512,1
+                e_vectors = e_vectors.view(-1, f_lm.shape[1], 512, 1) #B,K,512,1
+                e_hat = e_vectors.mean(dim=1)
+
+                #train G and D
+                x_hat = G(g_y, e_hat)
+                r_hat, D_hat_res_list = D(x_hat, g_y, i)
+                with torch.no_grad():
+                    r, D_res_list = D(x, g_y, i)
+                """####################################################################################################################################################
+                r, D_res_list = D(x, g_y, i)"""
+
+                lossG = criterionG(x, x_hat, r_hat, D_res_list, D_hat_res_list, e_vectors, D.module.W_i, i)
                 
-            # faceP0, facePT = model(sketch0,sketchT,face0,faceT)
-            # loss1 = criterion1(faceT,faceP0) + criterion1(face0,facePT)
-            # loss2 = criterion2(faceT,faceP0) + criterion2(face0,facePT)
-            # loss3 = criterion1(faceT,facePT) + criterion1(face0,faceP0)
-            # loss = loss1 + loss2 - loss3
-            faceP0, faceT_resize, deform_resize, deform = model(sketch0,sketchT,face0,faceT)
-            loss = criterion1(faceT,faceP0) + criterion1(faceT_resize,deform_resize)
+                """####################################################################################################################################################
+                lossD = criterionDfake(r_hat) + criterionDreal(r)
+                loss = lossG + lossD
+                loss.backward(retain_graph=False)
+                optimizerG.step()
+                optimizerD.step()"""
+                
+                lossG.backward(retain_graph=False)
+                optimizerG.step()
+                #optimizerD.step()
             
-            ev_loss.append(loss.detach().item())
-            if (batch+1)%(log_nth/2) == 0:
-                ev_batch.set_description(f'Ev E:{epoch+1}, B:{batch+1}, L:{np.mean(ev_loss):.2E}')
-        
-        loss = np.mean(ev_loss)
-        writer.add_scalar('Loss/ev', loss, epoch)
-        
-        norm = torch.load('../norm.pt')
-        mean_face = torch.unsqueeze(torch.unsqueeze(norm['mean_face'], 1), 2)
-        std_face = torch.unsqueeze(torch.unsqueeze(norm['std_face'], 1), 2)
-        vis_img = torch.zeros(3,sketch0.shape[2],sketch0.shape[3])
-        vis_img[0,:,:] = vis_img[0,:,:] + sketch0[0].detach().cpu()
-        vis_img[2,:,:] = vis_img[2,:,:] + sketchT[0].detach().cpu()
-        vis_img = torch.cat((vis_img,
-                             (face0[0].detach().cpu() * 255*std_face + mean_face)/255,
-                             (faceT[0].detach().cpu() * 255*std_face + mean_face)/255,
-                             (faceP0[0].detach().cpu() * 255*std_face + mean_face)/255,
-                             (deform[0].detach().cpu() * 255*std_face + mean_face)/255
-                             ),
-                            axis=1)
-        writer.add_image('Face/ev', vis_img, epoch)
-        
-        if best_loss is None or loss < best_loss:
-            best_loss = loss
-            torch.save(model, modelpath+'bestEv_'+name+'.model')
-        
-        # if epoch == epochs:
-        #     sample = {'face0':face0, 'faceT':faceT, 'faceP0':faceP0, 'facePT':facePT}
-        #     torch.save(sample, 'evsample.pt')
-        
-        # scheduler.step()
-        return best_loss
+            with torch.autograd.enable_grad():
+                optimizerG.zero_grad()
+                optimizerD.zero_grad()
+                x_hat.detach_().requires_grad_()
+                r_hat, D_hat_res_list = D(x_hat, g_y, i)
+                lossDfake = criterionDfake(r_hat)
 
-model = network.Net().to(device)
-criterion1 = nn.MSELoss(reduction='mean')
-# criterion2 = network.faceKP(device)
-optimizer = optim.Adam(model.parameters(), lr=1e-4, betas=(0.9,0.999), eps=1e-8)
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.1)
+                r, D_res_list = D(x, g_y, i)
+                lossDreal = criterionDreal(r)
+                
+                lossD = lossDfake + lossDreal
+                lossD.backward(retain_graph=False)
+                optimizerD.step()
+                #for p in D.module.parameters():
+                 #   p.data.clamp_(-1.0, 1.0)
+                
+                
+                optimizerD.zero_grad()
+                r_hat, D_hat_res_list = D(x_hat, g_y, i)
+                lossDfake = criterionDfake(r_hat)
 
-bestEv_loss = None; bestTr_loss = None
-for epoch in range(epochs):
-    bestTr_loss = train(model,epoch,bestTr_loss)
-    bestEv_loss = eval(model,epoch,bestEv_loss,scheduler)        
-        
+                r, D_res_list = D(x, g_y, i)
+                lossDreal = criterionDreal(r)
+                
+                lossD = lossDfake + lossDreal
+                lossD.backward(retain_graph=False)
+                optimizerD.step()
+                #for p in D.module.parameters():
+                 #   p.data.clamp_(-1.0, 1.0)
+
+        for enum, idx in enumerate(i):
+            torch.save({'W_i': D.module.W_i[:,enum].unsqueeze(-1)}, path_to_Wi+'/W_'+str(idx.item())+'/W_'+str(idx.item())+'.tar')
+                    
+
+        # Output training stats
+        if i_batch % 1 == 0 and i_batch > 0:
+            #batch_end = datetime.now()
+            #avg_time = (batch_end - batch_start) / 100
+            # print('\n\navg batch time for batch size of', x.shape[0],':',avg_time)
+            
+            #batch_start = datetime.now()
+            
+            # print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(y)): %.4f'
+            #       % (epoch, num_epochs, i_batch, len(dataLoader),
+            #          lossD.item(), lossG.item(), r.mean(), r_hat.mean()))
+            pbar.set_postfix(epoch=epoch, r=r.mean().item(), rhat=r_hat.mean().item(), lossG=lossG.item())
+
+            if display_training:
+                plt.figure(figsize=(10,10))
+                plt.clf()
+                out = (x_hat[0]*255).transpose(0,2)
+                for img_no in range(1,x_hat.shape[0]//16):
+                    out = torch.cat((out, (x_hat[img_no]*255).transpose(0,2)), dim = 1)
+                out = out.type(torch.int32).to(cpu).numpy()
+                fig = out
+
+                plt.clf()
+                out = (x[0]*255).transpose(0,2)
+                for img_no in range(1,x.shape[0]//16):
+                    out = torch.cat((out, (x[img_no]*255).transpose(0,2)), dim = 1)
+                out = out.type(torch.int32).to(cpu).numpy()
+                fig = np.concatenate((fig, out), 0)
+
+                plt.clf()
+                out = (g_y[0]*255).transpose(0,2)
+                for img_no in range(1,g_y.shape[0]//16):
+                    out = torch.cat((out, (g_y[img_no]*255).transpose(0,2)), dim = 1)
+                out = out.type(torch.int32).to(cpu).numpy()
+                
+                fig = np.concatenate((fig, out), 0)
+                plt.imshow(fig)
+                plt.xticks([])
+                plt.yticks([])
+                plt.draw()
+                plt.pause(0.001)
+            
+            
+
+        if i_batch % 1000 == 999:
+            lossesD.append(lossD.item())
+            lossesG.append(lossG.item())
+
+            if display_training:
+                plt.clf()
+                plt.plot(lossesG) #blue
+                plt.plot(lossesD) #orange
+                plt.show()
+
+            print('Saving latest...')
+            torch.save({
+                    'epoch': epoch,
+                    'lossesG': lossesG,
+                    'lossesD': lossesD,
+                    'E_state_dict': E.module.state_dict(),
+                    'G_state_dict': G.module.state_dict(),
+                    'D_state_dict': D.module.state_dict(),
+                    'num_vid': dataset.__len__(),
+                    'i_batch': i_batch,
+                    'optimizerG': optimizerG.state_dict(),
+                    'optimizerD': optimizerD.state_dict()
+                    }, path_to_chkpt)
+            out = (x_hat[0]*255).transpose(0,2)
+            for img_no in range(1,2):
+                out = torch.cat((out, (x_hat[img_no]*255).transpose(0,2)), dim = 1)
+            out = out.type(torch.uint8).to(cpu).numpy()
+            plt.imsave("recent.png", out)
+            print('...Done saving latest')
+            
+    if epoch%1 == 0:
+        print('Saving latest...')
+        torch.save({
+                'epoch': epoch+1,
+                'lossesG': lossesG,
+                'lossesD': lossesD,
+                'E_state_dict': E.module.state_dict(),
+                'G_state_dict': G.module.state_dict(),
+                'D_state_dict': D.module.state_dict(),
+                'num_vid': dataset.__len__(),
+                'i_batch': i_batch,
+                'optimizerG': optimizerG.state_dict(),
+                'optimizerD': optimizerD.state_dict()
+                }, path_to_backup)
+        out = (x_hat[0]*255).transpose(0,2)
+        for img_no in range(1,2):
+            out = torch.cat((out, (x_hat[img_no]*255).transpose(0,2)), dim = 1)
+        out = out.type(torch.uint8).to(cpu).numpy()
+        plt.imsave("recent_backup.png", out)
+        print('...Done saving latest')
