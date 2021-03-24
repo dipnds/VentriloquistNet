@@ -189,8 +189,8 @@ for epoch in range(epochCurrent, num_epochs):
                  #   p.data.clamp_(-1.0, 1.0)
 
         for enum, idx in enumerate(i):
-            print('******************EDIT ME*********************')
-            # torch.save({'W_i': D.module.W_i[:,enum].unsqueeze(-1)}, path_to_Wi+'/W_'+str(idx.item())+'/W_'+str(idx.item())+'.pt')
+            print(idx)
+            torch.save(D.module.W_i[:,enum], dataset.datalist[idx][0] + 'W_' + dataset.datalist[idx][1] + '.pt')
                     
 
         # Output training stats
