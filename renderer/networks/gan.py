@@ -14,7 +14,7 @@ class Embedder(nn.Module):
         
         self.relu = nn.LeakyReLU(inplace=False)
         
-        #in 6*224*224
+        #in 4*224*224
         self.pad = Padding(in_height) #out 6*256*256
         self.resDown1 = ResBlockDown(4, 64) #out 64*128*128
         self.resDown2 = ResBlockDown(64, 128) #out 128*64*64
@@ -25,9 +25,9 @@ class Embedder(nn.Module):
         self.resDown6 = ResBlockDown(512, 512) #out 512*4*4
         self.sum_pooling = nn.AdaptiveMaxPool2d((1,1)) #out 512*1*1
 
-    def forward(self, x, y):
-        out = torch.cat((x,y),dim = -3) #out 4*224*224
-        out = self.pad(out) #out 4*256*256
+    def forward(self, x):
+        # out = torch.cat((x,y),dim = -3) #out 4*224*224
+        out = self.pad(x) #out 4*256*256
         out = self.resDown1(out) #out 64*128*128
         out = self.resDown2(out) #out 128*64*64
         out = self.resDown3(out) #out 256*32*32
@@ -69,7 +69,7 @@ class Generator(nn.Module):
         self.pad = Padding(in_height) #out 3*256*256
         
         #Down
-        self.resDown1 = ResBlockDown(3, 64, conv_size=9, padding_size=4) #out 64*128*128
+        self.resDown1 = ResBlockDown(1, 64, conv_size=9, padding_size=4) #out 64*128*128
         self.in1 = nn.InstanceNorm2d(64, affine=True)
         
         self.resDown2 = ResBlockDown(64, 128) #out 128*64*64
@@ -185,14 +185,14 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, num_videos, path_to_Wi, finetuning=False, e_finetuning=None):
+    def __init__(self, num_videos, finetuning=False, e_finetuning=None):
         super(Discriminator, self).__init__()
-        self.path_to_Wi = path_to_Wi
+        # self.path_to_Wi = path_to_Wi
         self.gpu_num = torch.cuda.device_count()
         self.relu = nn.LeakyReLU()
         
-        #in 6*224*224
-        self.pad = Padding(224) #out 6*256*256
+        #in 4*224*224
+        self.pad = Padding(224) #out 4*256*256
         self.resDown1 = ResBlockDown(4, 64) #out 64*128*128
         self.resDown2 = ResBlockDown(64, 128) #out 128*64*64
         self.resDown3 = ResBlockDown(128, 256) #out 256*32*32
@@ -204,15 +204,15 @@ class Discriminator(nn.Module):
         self.sum_pooling = nn.AdaptiveAvgPool2d((1,1)) #out 512*1*1
 
         
-        if not finetuning:
-            print('Initializing Discriminator weights')
-            if not os.path.isdir(self.path_to_Wi):
-                os.mkdir(self.path_to_Wi)
-            for i in tqdm(range(num_videos)):
-                if not os.path.isfile(self.path_to_Wi+'/W_'+str(i)+'/W_'+str(i)+'.tar'):
-                    w_i = torch.rand(512, 1)
-                    os.mkdir(self.path_to_Wi+'/W_'+str(i))
-                    torch.save({'W_i': w_i}, self.path_to_Wi+'/W_'+str(i)+'/W_'+str(i)+'.tar')
+        # if not finetuning:
+        #     print('Initializing Discriminator weights')
+        #     if not os.path.isdir(self.path_to_Wi):
+        #         os.mkdir(self.path_to_Wi)
+        #     for i in tqdm(range(num_videos)):
+        #         if not os.path.isfile(self.path_to_Wi+'/W_'+str(i)+'/W_'+str(i)+'.tar'):
+        #             w_i = torch.rand(512, 1)
+        #             os.mkdir(self.path_to_Wi+'/W_'+str(i))
+        #             torch.save({'W_i': w_i}, self.path_to_Wi+'/W_'+str(i)+'/W_'+str(i)+'.tar')
         self.W_i = nn.Parameter(torch.randn(512, 32))
         self.w_0 = nn.Parameter(torch.randn(512,1))
         self.b = nn.Parameter(torch.randn(1))
@@ -228,8 +228,8 @@ class Discriminator(nn.Module):
     def load_W_i(self, W_i):
         self.W_i.data = self.relu(W_i)
     
-    def forward(self, x, y, i):
-        out = torch.cat((x,y), dim=-3) #out B*6*224*224
+    def forward(self, x, y):
+        out = torch.cat((x,y), dim=-3) #out B*4*224*224
         
         out = self.pad(out)
         
@@ -264,67 +264,3 @@ class Discriminator(nn.Module):
             out = torch.bmm(out.transpose(1,2), (self.W_i[:, batch_start_idx:batch_end_idx].unsqueeze(-1)).transpose(0,1) + self.w_0) + self.b #1x1
         
         return out, [out1 , out2, out3, out4, out5, out6, out7]
-
-class Cropped_VGG19(nn.Module):
-    def __init__(self):
-        super(Cropped_VGG19, self).__init__()
-        
-        self.conv1_1 = nn.Conv2d(3,64,3)
-        self.conv1_2 = nn.Conv2d(64,64,3)
-        self.conv2_1 = nn.Conv2d(64,128,3)
-        self.conv2_2 = nn.Conv2d(128,128,3)
-        self.conv3_1 = nn.Conv2d(128,256,3)
-        self.conv3_2 = nn.Conv2d(256,256,3)
-        self.conv3_3 = nn.Conv2d(256,256,3)
-        self.conv4_1 = nn.Conv2d(256,512,3)
-        self.conv4_2 = nn.Conv2d(512,512,3)
-        self.conv4_3 = nn.Conv2d(512,512,3)
-        self.conv5_1 = nn.Conv2d(512,512,3)
-        #self.conv5_2 = nn.Conv2d(512,512,3)
-        #self.conv5_3 = nn.Conv2d(512,512,3)
-        
-    def forward(self, x):
-        conv1_1_pad     = F.pad(x, (1, 1, 1, 1))
-        conv1_1         = self.conv1_1(conv1_1_pad)
-        relu1_1         = F.relu(conv1_1)
-        conv1_2_pad     = F.pad(relu1_1, (1, 1, 1, 1))
-        conv1_2         = self.conv1_2(conv1_2_pad)
-        relu1_2         = F.relu(conv1_2)
-        pool1_pad       = F.pad(relu1_2, (0, 1, 0, 1), value=float('-inf'))
-        pool1           = F.max_pool2d(pool1_pad, kernel_size=(2, 2), stride=(2, 2), padding=0, ceil_mode=False)
-        conv2_1_pad     = F.pad(pool1, (1, 1, 1, 1))
-        conv2_1         = self.conv2_1(conv2_1_pad)
-        relu2_1         = F.relu(conv2_1)
-        conv2_2_pad     = F.pad(relu2_1, (1, 1, 1, 1))
-        conv2_2         = self.conv2_2(conv2_2_pad)
-        relu2_2         = F.relu(conv2_2)
-        pool2_pad       = F.pad(relu2_2, (0, 1, 0, 1), value=float('-inf'))
-        pool2           = F.max_pool2d(pool2_pad, kernel_size=(2, 2), stride=(2, 2), padding=0, ceil_mode=False)
-        conv3_1_pad     = F.pad(pool2, (1, 1, 1, 1))
-        conv3_1         = self.conv3_1(conv3_1_pad)
-        relu3_1         = F.relu(conv3_1)
-        conv3_2_pad     = F.pad(relu3_1, (1, 1, 1, 1))
-        conv3_2         = self.conv3_2(conv3_2_pad)
-        relu3_2         = F.relu(conv3_2)
-        conv3_3_pad     = F.pad(relu3_2, (1, 1, 1, 1))
-        conv3_3         = self.conv3_3(conv3_3_pad)
-        relu3_3         = F.relu(conv3_3)
-        pool3_pad       = F.pad(relu3_3, (0, 1, 0, 1), value=float('-inf'))
-        pool3           = F.max_pool2d(pool3_pad, kernel_size=(2, 2), stride=(2, 2), padding=0, ceil_mode=False)
-        conv4_1_pad     = F.pad(pool3, (1, 1, 1, 1))
-        conv4_1         = self.conv4_1(conv4_1_pad)
-        relu4_1         = F.relu(conv4_1)
-        conv4_2_pad     = F.pad(relu4_1, (1, 1, 1, 1))
-        conv4_2         = self.conv4_2(conv4_2_pad)
-        relu4_2         = F.relu(conv4_2)
-        conv4_3_pad     = F.pad(relu4_2, (1, 1, 1, 1))
-        conv4_3         = self.conv4_3(conv4_3_pad)
-        relu4_3         = F.relu(conv4_3)
-        pool4_pad       = F.pad(relu4_3, (0, 1, 0, 1), value=float('-inf'))
-        pool4           = F.max_pool2d(pool4_pad, kernel_size=(2, 2), stride=(2, 2), padding=0, ceil_mode=False)
-        conv5_1_pad     = F.pad(pool4, (1, 1, 1, 1))
-        conv5_1         = self.conv5_1(conv5_1_pad)
-        relu5_1         = F.relu(conv5_1)
-        
-        return [relu1_1, relu2_1, relu3_1, relu4_1, relu5_1]
-    

@@ -62,3 +62,47 @@ class prep(Dataset):
         triplet['faceT'] = faceT
         
         return triplet
+    
+    
+class gan_prep(Dataset):
+    def __init__(self, path):
+        
+        self.datalist = []
+        for person in os.listdir(path):
+            for vid in os.listdir(path+'/'+person):
+                if len(os.listdir(path+'/'+person+'/'+vid)) == 3:
+                    fname = os.listdir(path+'/'+person+'/'+vid)[0]
+                    fname = fname.split('.')[0]
+                    fname = fname.split('_')[-1]
+                    self.datalist.append((path+'/'+person+'/'+vid+'/',fname))
+                    
+        self.meta = torch.tensor([129.186279296875, 104.76238250732422, 93.59396362304688]) # from vgg
+        self.meta = self.meta.unsqueeze(-1).unsqueeze(-1)
+                    
+    def __len__(self):
+        return len(self.datalist)
+    
+    def __getitem__(self, idx):
+        
+        file = self.datalist[idx]
+        
+        i = torch.randint(low = 1, high = 31, size = (1,2))
+        
+        face = torch.load(file[0] + 'face_' + file[1] + '.mp4.pt')
+        sketch = torch.load(file[0] + 'sketch_' + file[1] + '.mp4.pt')['sketch']
+        W_i = torch.load(file[0] + 'W_' + file[1] + '.pt')
+        
+        face_source = (face[i[0,0],:,:,:] - self.meta)/255
+        face_source = face_source.type(torch.float)
+        face_target = (face[i[0,1],:,:,:] - self.meta)/255
+        face_target = face_target.type(torch.float)
+        
+        sketch_source = sketch[i[0,0],:,:,:]
+        sketch_source = sketch_source.type(torch.float)
+        sketch_target = sketch[i[0,1],:,:,:]
+        sketch_target = sketch_target.type(torch.float)
+        
+        f_lm = torch.cat((face_source,sketch_source),dim=-3)
+        
+        return f_lm, face_target, sketch_target, W_i, idx
+        

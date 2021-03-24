@@ -76,10 +76,10 @@ class Vgg_face_dag(nn.Module):
         x24 = self.pool4(x23)
         x25 = self.conv5_1(x24)
         x26 = self.relu5_1(x25)
-        x27 = self.conv5_2(x26)
-        x28 = self.relu5_2(x27)
-        x29 = self.conv5_3(x28)
-        x30 = self.relu5_3(x29)
+        # x27 = self.conv5_2(x26)
+        # x28 = self.relu5_2(x27)
+        # x29 = self.conv5_3(x28)
+        # x30 = self.relu5_3(x29)
         # x31_preflatten = self.pool5(x30)
         # x31 = x31_preflatten.view(x31_preflatten.size(0), -1)
         # x32 = self.fc6(x31)
@@ -89,7 +89,7 @@ class Vgg_face_dag(nn.Module):
         # x36 = self.relu7(x35)
         # x37 = self.dropout7(x36)
         # x38 = self.fc8(x37)
-        return x30 # x38
+        return [x2, x7, x12, x19, x26] # x38
 
 def vgg_face_dag(weights_path=None, **kwargs):
     """

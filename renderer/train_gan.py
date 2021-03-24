@@ -4,33 +4,37 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from datetime import datetime
 import os
+from matplotlib import pyplot as plt
 
-from dataset.dataset_class import PreprocessDataset
+from dataprep import gan_prep
 from loss.loss_discriminator import LossDSCreal, LossDSCfake
 from loss.loss_generator import LossG
 from networks.gan import Embedder, Generator, Discriminator
 from tqdm import tqdm
 
-from params.params import K, path_to_chkpt, path_to_backup, path_to_Wi, batch_size, path_to_preprocess, frame_shape
+# from params.params import K, path_to_chkpt, path_to_backup, batch_size
+
+frame_shape = 224; batch_size = 2
+path_to_chkpt = 'models/gan_chkpt.pt'
 
 """Create dataset and net"""
+path = '../processed'
 display_training = False
 device = torch.device("cuda:0")
 cpu = torch.device("cpu")
-dataset = PreprocessDataset(K=K, path_to_preprocess=path_to_preprocess, path_to_Wi=path_to_Wi)
+dataset = gan_prep(path)
 dataLoader = DataLoader(dataset, batch_size=batch_size, shuffle=True,
-                        num_workers=16,
+                        num_workers=15,
                         pin_memory=True,
                         drop_last = True)
 
 G = nn.DataParallel(Generator(frame_shape).to(device))
 E = nn.DataParallel(Embedder(frame_shape).to(device))
-D = nn.DataParallel(Discriminator(dataset.__len__(), path_to_Wi).to(device))
+D = nn.DataParallel(Discriminator(dataset.__len__()).to(device))
 
-G.train()
-E.train()
-D.train()
-
+# G.train()
+# E.train()
+# D.train()
 
 optimizerG = optim.Adam(params = list(E.parameters()) + list(G.parameters()),
                         lr=5e-5,
@@ -108,7 +112,7 @@ for epoch in range(epochCurrent, num_epochs):
         i_batch_current = 0
         pbar = tqdm(dataLoader, leave=True, initial=0)
     pbar.set_postfix(epoch=epoch)
-    for i_batch, (f_lm, x, g_y, i, W_i) in enumerate(pbar, start=0):
+    for i_batch, (f_lm, x, g_y, W_i, i) in enumerate(pbar, start=0):
         
         f_lm = f_lm.to(device)
         x = x.to(device)
@@ -125,11 +129,12 @@ for epoch in range(epochCurrent, num_epochs):
 
                 #forward
                 # Calculate average encoding vector for video
-                f_lm_compact = f_lm.view(-1, f_lm.shape[-4], f_lm.shape[-3], f_lm.shape[-2], f_lm.shape[-1]) #BxK,2,3,224,224
+                # f_lm_compact = f_lm.view(-1, f_lm.shape[-4], f_lm.shape[-3], f_lm.shape[-2], f_lm.shape[-1]) #BxK,2,3,224,224
 
-                e_vectors = E(f_lm_compact[:,0,:,:,:], f_lm_compact[:,1,:,:,:]) #BxK,512,1
-                e_vectors = e_vectors.view(-1, f_lm.shape[1], 512, 1) #B,K,512,1
-                e_hat = e_vectors.mean(dim=1)
+                # e_vectors = E(f_lm_compact[:,0,:,:,:], f_lm_compact[:,1,:,:,:]) #BxK,512,1
+                # e_vectors = e_vectors.view(-1, f_lm.shape[1], 512, 1) #B,K,512,1
+                # e_hat = e_vectors.mean(dim=1)
+                e_hat = E(f_lm)
 
                 #train G and D
                 x_hat = G(g_y, e_hat)
@@ -139,7 +144,8 @@ for epoch in range(epochCurrent, num_epochs):
                 """####################################################################################################################################################
                 r, D_res_list = D(x, g_y, i)"""
 
-                lossG = criterionG(x, x_hat, r_hat, D_res_list, D_hat_res_list, e_vectors, D.module.W_i, i)
+                # lossG = criterionG(x, x_hat, r_hat, D_res_list, D_hat_res_list, e_vectors, D.module.W_i, i)
+                lossG = criterionG(x, x_hat, r_hat, D_res_list, D_hat_res_list, e_hat, D.module.W_i, i)
                 
                 """####################################################################################################################################################
                 lossD = criterionDfake(r_hat) + criterionDreal(r)
@@ -183,7 +189,8 @@ for epoch in range(epochCurrent, num_epochs):
                  #   p.data.clamp_(-1.0, 1.0)
 
         for enum, idx in enumerate(i):
-            torch.save({'W_i': D.module.W_i[:,enum].unsqueeze(-1)}, path_to_Wi+'/W_'+str(idx.item())+'/W_'+str(idx.item())+'.tar')
+            print('******************EDIT ME*********************')
+            # torch.save({'W_i': D.module.W_i[:,enum].unsqueeze(-1)}, path_to_Wi+'/W_'+str(idx.item())+'/W_'+str(idx.item())+'.pt')
                     
 
         # Output training stats
@@ -230,7 +237,7 @@ for epoch in range(epochCurrent, num_epochs):
             
             
 
-        if i_batch % 1000 == 999:
+        if i_batch % 100 == 99:
             lossesD.append(lossD.item())
             lossesG.append(lossG.item())
 
@@ -257,26 +264,26 @@ for epoch in range(epochCurrent, num_epochs):
             for img_no in range(1,2):
                 out = torch.cat((out, (x_hat[img_no]*255).transpose(0,2)), dim = 1)
             out = out.type(torch.uint8).to(cpu).numpy()
-            # plt.imsave("recent.png", out)
+            plt.imsave("recent.png", out)
             print('...Done saving latest')
             
-    if epoch%1 == 0:
-        print('Saving latest...')
-        torch.save({
-                'epoch': epoch+1,
-                'lossesG': lossesG,
-                'lossesD': lossesD,
-                'E_state_dict': E.module.state_dict(),
-                'G_state_dict': G.module.state_dict(),
-                'D_state_dict': D.module.state_dict(),
-                'num_vid': dataset.__len__(),
-                'i_batch': i_batch,
-                'optimizerG': optimizerG.state_dict(),
-                'optimizerD': optimizerD.state_dict()
-                }, path_to_backup)
-        out = (x_hat[0]*255).transpose(0,2)
-        for img_no in range(1,2):
-            out = torch.cat((out, (x_hat[img_no]*255).transpose(0,2)), dim = 1)
-        out = out.type(torch.uint8).to(cpu).numpy()
-        # plt.imsave("recent_backup.png", out)
-        print('...Done saving latest')
+    # if epoch%1 == 0:
+    #     print('Saving latest...')
+    #     torch.save({
+    #             'epoch': epoch+1,
+    #             'lossesG': lossesG,
+    #             'lossesD': lossesD,
+    #             'E_state_dict': E.module.state_dict(),
+    #             'G_state_dict': G.module.state_dict(),
+    #             'D_state_dict': D.module.state_dict(),
+    #             'num_vid': dataset.__len__(),
+    #             'i_batch': i_batch,
+    #             'optimizerG': optimizerG.state_dict(),
+    #             'optimizerD': optimizerD.state_dict()
+    #             }, path_to_backup)
+    #     out = (x_hat[0]*255).transpose(0,2)
+    #     for img_no in range(1,2):
+    #         out = torch.cat((out, (x_hat[img_no]*255).transpose(0,2)), dim = 1)
+    #     out = out.type(torch.uint8).to(cpu).numpy()
+    #     # plt.imsave("recent_backup.png", out)
+    #     print('...Done saving latest')
