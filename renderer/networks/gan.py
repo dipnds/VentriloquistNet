@@ -254,7 +254,7 @@ class Discriminator(nn.Module):
         out = self.relu(out)
         
         out = out.squeeze(-1) #out B*512*1
-        
+
         batch_start_idx = torch.cuda.current_device() * self.W_i.shape[1]//self.gpu_num
         batch_end_idx = (torch.cuda.current_device() + 1) * self.W_i.shape[1]//self.gpu_num
         

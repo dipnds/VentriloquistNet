@@ -141,9 +141,10 @@ class LossMatch(nn.Module):
         #     loss[b] = loss[b]/e_vectors.shape[1]
         # loss = loss.mean()
         
-        W = W.unsqueeze(-1).expand(512, W.shape[1], e_vectors.shape[1]).transpose(0,1).transpose(1,2)
+        # W = W.unsqueeze(-1).expand(512, W.shape[1], e_vectors.shape[1]).transpose(0,1).transpose(1,2)
         #B,8,512
-        W = W.reshape(-1,512)
+        # W = W.reshape(-1,512)
+        W = W.transpose(0,1)
         #B*8,512
         e_vectors = e_vectors.squeeze(-1)
         #B,8,512

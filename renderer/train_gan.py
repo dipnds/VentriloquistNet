@@ -18,13 +18,13 @@ frame_shape = 224; batch_size = 2
 path_to_chkpt = 'models/gan_chkpt.pt'
 
 """Create dataset and net"""
-path = '../processed'
+path = '/storage/user/dasd/vox2/dev/processed'
 display_training = False
 device = torch.device("cuda:0")
 cpu = torch.device("cpu")
 dataset = gan_prep(path)
 dataLoader = DataLoader(dataset, batch_size=batch_size, shuffle=True,
-                        num_workers=15,
+                        num_workers=7,
                         pin_memory=True,
                         drop_last = True)
 
@@ -138,11 +138,11 @@ for epoch in range(epochCurrent, num_epochs):
 
                 #train G and D
                 x_hat = G(g_y, e_hat)
-                r_hat, D_hat_res_list = D(x_hat, g_y, i)
+                r_hat, D_hat_res_list = D(x_hat, g_y)
                 with torch.no_grad():
-                    r, D_res_list = D(x, g_y, i)
+                    r, D_res_list = D(x, g_y)
                 """####################################################################################################################################################
-                r, D_res_list = D(x, g_y, i)"""
+                r, D_res_list = D(x, g_y)"""
 
                 # lossG = criterionG(x, x_hat, r_hat, D_res_list, D_hat_res_list, e_vectors, D.module.W_i, i)
                 lossG = criterionG(x, x_hat, r_hat, D_res_list, D_hat_res_list, e_hat, D.module.W_i, i)
@@ -162,10 +162,10 @@ for epoch in range(epochCurrent, num_epochs):
                 optimizerG.zero_grad()
                 optimizerD.zero_grad()
                 x_hat.detach_().requires_grad_()
-                r_hat, D_hat_res_list = D(x_hat, g_y, i)
+                r_hat, D_hat_res_list = D(x_hat, g_y)
                 lossDfake = criterionDfake(r_hat)
 
-                r, D_res_list = D(x, g_y, i)
+                r, D_res_list = D(x, g_y)
                 lossDreal = criterionDreal(r)
                 
                 lossD = lossDfake + lossDreal
@@ -176,10 +176,10 @@ for epoch in range(epochCurrent, num_epochs):
                 
                 
                 optimizerD.zero_grad()
-                r_hat, D_hat_res_list = D(x_hat, g_y, i)
+                r_hat, D_hat_res_list = D(x_hat, g_y)
                 lossDfake = criterionDfake(r_hat)
 
-                r, D_res_list = D(x, g_y, i)
+                r, D_res_list = D(x, g_y)
                 lossDreal = criterionDreal(r)
                 
                 lossD = lossDfake + lossDreal
