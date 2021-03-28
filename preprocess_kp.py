@@ -126,7 +126,7 @@ if not os.path.isfile('split.pkl'):
     id_list['eval'] = [id_list['dev'][i] for i in idx]
     id_list['train'] = list(set(id_list['dev']) - set(id_list['eval']))
     del id_list['dev']
-    pkl.dump(id_list,open('split.pkl','rb'))
+    pkl.dump(id_list,open('split.pkl','wb'))
 
 # init face alignment
 fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D,flip_input=False,
