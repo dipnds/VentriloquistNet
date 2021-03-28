@@ -73,7 +73,7 @@ def processing_loop(person_list, path_in, path_out, fa):
     person_list = tqdm.tqdm(person_list,total=len(person_list))
     
     for person in person_list:
-	person_list.set_description(person)
+        person_list.set_description(person)
         if os.path.isdir(path_in+person):
             vid_list = os.listdir(path_in+person)
             for vid in vid_list:
