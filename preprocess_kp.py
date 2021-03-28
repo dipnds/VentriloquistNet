@@ -6,6 +6,7 @@ import csv
 from scipy.optimize import curve_fit
 import warnings
 import tqdm
+import pickle as pkl
 
 import face_alignment
 
@@ -72,41 +73,43 @@ def processing_loop(person_list, path_in, path_out, fa):
     person_list = tqdm.tqdm(person_list,total=len(person_list))
     
     for person in person_list:
+	person_list.set_description(person)
         if os.path.isdir(path_in+person):
             vid_list = os.listdir(path_in+person)
-            # limit to 3
-            # lim = 3
-            # if len(vid_list) > lim: vid_list = vid_list[:lim]
             for vid in vid_list:
                 utter_list = os.listdir(path_in+person+'/'+vid)
                 # limit to 1
                 lim = 1
                 if len(utter_list) > lim: utter_list = utter_list[:lim]
                 
-                if not os.path.isdir(path_out+person+'/'+vid+'/'):
-                    os.makedirs(path_out+person+'/'+vid+'/')
-                
                 for utter in utter_list:
-                    (frame,_,_) = read_video(path_in+person+'/'+vid+'/'+utter,
-                                             0,2.55,pts_unit='sec') # 64 frames
-                    frame = frame.permute(0,3,1,2)
-                    corner = [np.array([0,0,frame.shape[2],frame.shape[3]])]
-                    bbox = [corner]*frame.shape[0]
-                    video_kp = fa.get_landmarks_from_batch(frame,bbox)
                     
-                    sketch = []
-                    for frame_kp in video_kp:
-                        frame_kp = frame_kp.astype(int)
-                        sketch.append(kp2sketch(frame_kp,frame.shape[2],frame.shape[3]))
-                    sketch = torch.stack(sketch); sketch = torch.unsqueeze(sketch,1)
-                    video_kp = torch.tensor(np.stack(video_kp)); video_kp = video_kp.type(torch.uint8)
-                    sample = {'sketch':sketch, 'kp':video_kp}
-                    
-                    torch.save(frame,path_out+person+'/'+vid+'/'+'face_'+utter+'.pt')
-                    torch.save(sample,path_out+person+'/'+vid+'/'+'sketch_'+utter+'.pt')
+                    try:
+                        (frame,_,_) = read_video(path_in+person+'/'+vid+'/'+utter,
+                                                 0,1.59,pts_unit='sec') # 32+8 frames
+                        frame = frame.permute(0,3,1,2)
+                        corner = [np.array([0,0,frame.shape[2],frame.shape[3]])]
+                        bbox = [corner]*frame.shape[0]
+                        video_kp = fa.get_landmarks_from_batch(frame,bbox)
+                        
+                        sketch = []
+                        for frame_kp in video_kp:
+                            frame_kp = frame_kp.astype(int)
+                            sketch.append(kp2sketch(frame_kp,frame.shape[2],frame.shape[3]))
+                        sketch = torch.stack(sketch); sketch = torch.unsqueeze(sketch,1)
+                        video_kp = torch.tensor(np.stack(video_kp)); video_kp = video_kp.type(torch.uint8)
+                        sample = {'sketch':sketch, 'kp':video_kp}
+                        
+                        if not os.path.isdir(path_out+person+'/'+vid+'/'):
+                            os.makedirs(path_out+person+'/'+vid+'/')    
+                        torch.save(frame,path_out+person+'/'+vid+'/'+'face_'+utter[:-4]+'.pt')
+                        torch.save(sample,path_out+person+'/'+vid+'/'+'sketch_'+utter[:-4]+'.pt')
+                        
+                    except:
+                        print(person+'/'+vid)
+                        
     return 0
                     
-## main
 # make a list of person IDs in the target subset
 with open('vox2_meta.csv') as meta:
     csv_reader = csv.reader(meta, delimiter=',')
@@ -116,18 +119,21 @@ with open('vox2_meta.csv') as meta:
         id_list[row[-1].strip()].append(row[0].strip())
 
 # train eval split
-np.random.seed(0)
-idx = np.random.choice(len(id_list['dev']),len(id_list['test']),replace=False)
-id_list['eval'] = [id_list['dev'][i] for i in idx]
-id_list['train'] = list(set(id_list['dev']) - set(id_list['eval']))
-del id_list['dev']
+file_list = id_list['dev']
+if not os.path.isfile('split.pkl'):
+    np.random.seed(0)
+    idx = np.random.choice(len(id_list['dev']),len(id_list['test']),replace=False)
+    id_list['eval'] = [id_list['dev'][i] for i in idx]
+    id_list['train'] = list(set(id_list['dev']) - set(id_list['eval']))
+    del id_list['dev']
+    pkl.dump(id_list,open('split.pkl','rb'))
 
 # init face alignment
 fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D,flip_input=False,
                                   device='cuda',face_detector='blazeface') # default 'sfd'
 
 # loop over subsets
-a = 5650; b = 5874
+a = 0; b = 600
 print(a,b)
-processing_loop(id_list['train'][a:b], path_in, path_out, fa)
+processing_loop(file_list[a:b], path_in, path_out, fa)
 # processing_loop(id_list['test'], path_in, path_out, fa)
