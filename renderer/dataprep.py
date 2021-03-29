@@ -90,7 +90,7 @@ class gan_prep(Dataset):
         
         face = torch.load(file[0] + 'face_' + file[1] + '.mp4.pt')
         sketch = torch.load(file[0] + 'sketch_' + file[1] + '.mp4.pt')['sketch']
-        W_i = torch.load(file[0] + 'W_' + file[1] + '.pt')
+        W_i = torch.load(file[0] + 'W_' + file[1] + '.pt',map_location='cpu').requires_grad_(False)
         
         face_source = (face[i[0,0],:,:,:] - self.meta)/255
         face_source = face_source.type(torch.float)

@@ -213,7 +213,7 @@ class Discriminator(nn.Module):
         #             w_i = torch.rand(512, 1)
         #             os.mkdir(self.path_to_Wi+'/W_'+str(i))
         #             torch.save({'W_i': w_i}, self.path_to_Wi+'/W_'+str(i)+'/W_'+str(i)+'.tar')
-        self.W_i = nn.Parameter(torch.randn(512, 32))
+        self.W_i = nn.Parameter(torch.randn(512, 8))
         self.w_0 = nn.Parameter(torch.randn(512,1))
         self.b = nn.Parameter(torch.randn(1))
         

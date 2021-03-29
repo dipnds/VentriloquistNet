@@ -133,7 +133,7 @@ fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D,flip_input=Fa
                                   device='cuda',face_detector='blazeface') # default 'sfd'
 
 # loop over subsets
-a = 0; b = 600
+a = 5400; b = 6000
 print(a,b)
 processing_loop(file_list[a:b], path_in, path_out, fa)
 # processing_loop(id_list['test'], path_in, path_out, fa)

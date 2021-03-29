@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 # from params.params import K, path_to_chkpt, path_to_backup, batch_size
 
-frame_shape = 224; batch_size = 2
+frame_shape = 224; batch_size = 8
 path_to_chkpt = 'models/gan_chkpt.pt'
 
 """Create dataset and net"""
@@ -189,7 +189,6 @@ for epoch in range(epochCurrent, num_epochs):
                  #   p.data.clamp_(-1.0, 1.0)
 
         for enum, idx in enumerate(i):
-            print(idx)
             torch.save(D.module.W_i[:,enum], dataset.datalist[idx][0] + 'W_' + dataset.datalist[idx][1] + '.pt')
                     
 
@@ -237,7 +236,7 @@ for epoch in range(epochCurrent, num_epochs):
             
             
 
-        if i_batch % 100 == 99:
+        if i_batch % 1000 == 999:
             lossesD.append(lossD.item())
             lossesG.append(lossG.item())
 
@@ -263,8 +262,8 @@ for epoch in range(epochCurrent, num_epochs):
             out = (x_hat[0]*255).transpose(0,2)
             for img_no in range(1,2):
                 out = torch.cat((out, (x_hat[img_no]*255).transpose(0,2)), dim = 1)
-            out = out.type(torch.uint8).to(cpu).numpy()
-            plt.imsave("recent.png", out)
+            out = out.to(cpu) + dataset.meta.transpose(0,2)
+            plt.imsave("recent.png", out.type(torch.uint8).numpy())
             print('...Done saving latest')
             
     # if epoch%1 == 0:
