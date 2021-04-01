@@ -13,7 +13,11 @@ class Generator(nn.Module):
         
         self.enc = preTr_enc('models/senet50_ft_dag.pth')
         for param in self.enc.parameters(): param.requires_grad=False
-            
+        self.embed = nn.Sequential(
+            nn.Linear(2048,1024),
+            nn.ReLU(),
+            nn.Linear(1024,512))
+        
         self.proj_len = 2*(512*2*5 + 512+256 + 256+128 + 128+64 + 64+32 + 32)
         self.slice_idx = [0,
                     512*4, #res1
@@ -70,14 +74,15 @@ class Generator(nn.Module):
         self.resUp4 = ResBlockUp(64, 32, out_size=(224, 224), scale=None, conv_size=3, padding_size=1) #out 3*224*224
         self.final = nn.Conv2d(32, 3, 3, padding = 1)
         
-        self.proj = nn.Parameter(torch.rand(1,self.proj_len,2048).normal_(0.0,0.02))
+        self.proj = nn.Parameter(torch.rand(1,self.proj_len,512).normal_(0.0,0.02))
         # self.proj = self.p.unsqueeze(0)
 
     def forward(self, face_source, sketch_target):
         
-        _, e = self.enc(face_source)
+        _, e = self.enc(face_source); e = e.squeeze(-1).squeeze(-1)
         p = self.proj.expand(e.shape[0],-1,-1)
-        e_psi = torch.bmm(p, e) #B, p_len, 1
+        emb = self.embed(e)
+        e_psi = torch.bmm(p, emb.unsqueeze(-1)) #B, p_len, 1
         
         #in 1*224*224 for voxceleb2
         out = self.pad(sketch_target)
@@ -160,7 +165,7 @@ class Discriminator(nn.Module):
         out7 = self.res(out6)
         out = self.sum_pooling(out7)
         out = self.relu(out)
-        out = out.squeeze() #out B*512*1
+        out = out.squeeze(-1).squeeze(-1) #out B*512*1
 
         e = self.fc_id(e)
         out = torch.cat((out,e), dim=-1)

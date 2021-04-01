@@ -3,16 +3,16 @@ from loss.vgg_face_dag import vgg_face_dag as vgg_face
 from loss.vgg19_pt_mcn import vgg19_pt_mcn as vgg_19
 
 class LossCnt(nn.Module):
-    def __init__(self, device):
+    def __init__(self):#, device):
         super(LossCnt, self).__init__()
         
         self.VGG19 = vgg_19(weights_path='models/vgg19_pt_mcn.pth')
         for param in self.VGG19.parameters(): param.requires_grad=False
-        self.VGG19.to(device)
+        # self.VGG19.to(device)
         
         self.VGGFace = vgg_face(weights_path='models/vgg_face_dag.pth')
         for param in self.VGGFace.parameters(): param.requires_grad=False
-        self.VGGFace.to(device)
+        # self.VGGFace.to(device)
 
         self.l1_loss = nn.L1Loss()
         self.conv_idx_list = [2,7,12,21,30] #idxes of conv layers in VGG19 cf.paper
@@ -52,9 +52,9 @@ class LossAdv(nn.Module):
 
     
 class LossG(nn.Module):
-    def __init__(self, device):
+    def __init__(self):#, device):
         super(LossG, self).__init__()
-        self.lossCnt = LossCnt(device)
+        self.lossCnt = LossCnt()#device)
         self.lossAdv = LossAdv()
         
     def forward(self, face_gt, face_pred, lab, D_gt_res_list, D_pred_res_list):
