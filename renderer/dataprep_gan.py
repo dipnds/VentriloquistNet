@@ -6,12 +6,12 @@ import pickle as pkl
 class prep(Dataset):
     def __init__(self, path, split):
         
-        person_list = pkl.load(open('../split.pkl','rb'))[split]
+        # person_list = pkl.load(open('../split.pkl','rb'))[split]
         
         # debug dataset
-        # path = '/storage/user/dasd/vox2/processed'
-        # if split == 'train': person_list = ['id00012','id00015']
-        # if split == 'eval': person_list = ['id00016']
+        path = '../processed'
+        if split == 'train': person_list = ['id00012','id00015']
+        if split == 'eval': person_list = ['id00016']
         
         self.datalist = []
         for person in person_list:
@@ -36,7 +36,7 @@ class prep(Dataset):
         
         i = torch.randint(low = 0, high = 8, size = (1,1))[0][0]
         j = torch.randint(low = 8, high = face.shape[0], size = (1,1))[0][0]
-        
+                
         face_source = face[i,:,:,:].type(torch.float)
         face_source = (face_source - self.meta) / 255
         sketch_source = sketch[i,:,:,:].type(torch.float)

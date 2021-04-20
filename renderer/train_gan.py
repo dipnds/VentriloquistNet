@@ -88,8 +88,8 @@ def train(G, D, opG, opD, crG, crDreal, crDfake, epoch):
                          axis=1)
     writer.add_image('Face/tr', vis_img, epoch)
     
-    torch.save(G, modelpath+'lastTr_G.model')
-    torch.save(D, modelpath+'lastTr_D.model')
+    torch.save(G, modelpath+'/lastTr_G.model')
+    torch.save(D, modelpath+'/lastTr_D.model')
     
     
 def eval(G, D, crG, crDreal, crDfake, epoch, best_loss): #, scheduler):
@@ -135,8 +135,8 @@ def eval(G, D, crG, crDreal, crDfake, epoch, best_loss): #, scheduler):
         loss = lossG + lossD
         if best_loss is None or loss < best_loss:
             best_loss = loss
-            torch.save(G, modelpath+'bestEv_G.model')
-            torch.save(D, modelpath+'bestEv_D.model')
+            torch.save(G, modelpath+'/bestEv_G.model')
+            torch.save(D, modelpath+'/bestEv_D.model')
     
 
 best_loss = None
