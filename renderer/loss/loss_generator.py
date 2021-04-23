@@ -8,11 +8,9 @@ class LossCnt(nn.Module):
         
         self.VGG19 = vgg_19(weights_path='models/vgg19_pt_mcn.pth')
         for param in self.VGG19.parameters(): param.requires_grad=False
-        # self.VGG19.to(device)
         
         self.VGGFace = vgg_face(weights_path='models/vgg_face_dag.pth')
         for param in self.VGGFace.parameters(): param.requires_grad=False
-        # self.VGGFace.to(device)
 
         self.l1_loss = nn.L1Loss()
         self.conv_idx_list = [2,7,12,21,30] #idxes of conv layers in VGG19 cf.paper
@@ -32,8 +30,9 @@ class LossCnt(nn.Module):
         loss_19 = 0
         for a, b in zip(gt_19_f, pred_19_f):
             loss_19 += self.l1_loss(a, b)
-        
+
         loss = vgg19_weight * loss_19 + vggface_weight * loss_face
+
         return loss
 
 
@@ -44,11 +43,14 @@ class LossAdv(nn.Module):
         self.FM_weight = FM_weight
         
     def forward(self, lab, D_gt_res_list, D_pred_res_list):
+
         lossFM = 0
         for a, b in zip(D_gt_res_list, D_pred_res_list):
             lossFM += self.l1_loss(a, b)
         
-        return -lab.mean() + lossFM * self.FM_weight
+        loss = -lab.mean() + lossFM * self.FM_weight
+
+        return loss
 
     
 class LossG(nn.Module):
@@ -60,5 +62,4 @@ class LossG(nn.Module):
     def forward(self, face_gt, face_pred, lab, D_gt_res_list, D_pred_res_list):
         loss_cnt = self.lossCnt(face_gt, face_pred)
         loss_adv = self.lossAdv(lab, D_gt_res_list, D_pred_res_list)
-        #print(loss_cnt.item(), loss_adv.item())
         return loss_cnt + loss_adv

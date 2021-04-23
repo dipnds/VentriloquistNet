@@ -4,24 +4,28 @@ import os
 import pickle as pkl
 
 class prep(Dataset):
-    def __init__(self, path, split):
-        
-        # person_list = pkl.load(open('../split.pkl','rb'))[split]
+    def __init__(self, path, subset):
         
         # debug dataset
-        path = '../processed'
-        if split == 'train': person_list = ['id00012','id00015']
-        if split == 'eval': person_list = ['id00016']
+        # path = '../processed'
+        # if split == 'train': person_list = ['id00012','id00015']
+        # if split == 'eval': person_list = ['id00016']
         
-        self.datalist = []
-        for person in person_list:
-            try:
-                for vid in os.listdir(path+'/'+person):
-                    if len(os.listdir(path+'/'+person+'/'+vid)) > 0:
-                        fname = os.listdir(path+'/'+person+'/'+vid)[0]
-                        fname = fname.split('_')[-1]
-                        self.datalist.append((path+'/'+person+'/'+vid+'/',fname))
-            except: pass
+        if not os.path.isfile('../datalist_'+subset+'.pkl'):
+        
+            person_list = pkl.load(open('../split.pkl','rb'))[subset]
+            self.datalist = []
+            for person in person_list:
+                try:
+                    for vid in os.listdir(path+'/'+person):
+                        if len(os.listdir(path+'/'+person+'/'+vid)) > 0:
+                            fname = os.listdir(path+'/'+person+'/'+vid)[0]
+                            fname = fname.split('_')[-1]
+                            self.datalist.append((path+'/'+person+'/'+vid+'/',fname))
+                except: pass
+            pkl.dump(self.datalist,open('../datalist_'+subset+'.pkl','wb'))
+        
+        else: self.datalist = pkl.load(open('../datalist_'+subset+'.pkl','rb'))
         
         self.meta = torch.tensor([131.0912, 103.8827, 91.4953]).unsqueeze(-1).unsqueeze(-1)
                                 

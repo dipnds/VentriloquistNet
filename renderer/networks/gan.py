@@ -1,9 +1,6 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from .blocks import ResBlockDown, SelfAttention, ResBlock, ResBlockD, ResBlockUp, Padding, adaIN
-import math
-import sys
 
 from networks.senet50_ft_dag import senet50_ft_dag as preTr_enc
 
@@ -78,12 +75,12 @@ class Generator(nn.Module):
         # self.proj = self.p.unsqueeze(0)
 
     def forward(self, face_source, sketch_target):
-        
+
         _, e = self.enc(face_source); e = e.squeeze(-1).squeeze(-1)
         p = self.proj.expand(e.shape[0],-1,-1)
         emb = self.embed(e)
         e_psi = torch.bmm(p, emb.unsqueeze(-1)) #B, p_len, 1
-        
+
         #in 1*224*224 for voxceleb2
         out = self.pad(sketch_target)
         
@@ -93,21 +90,21 @@ class Generator(nn.Module):
         out = self.resDown3(out); out = self.in3(out)
         out = self.self_att_Down(out)
         out = self.resDown4(out); out = self.in4(out)
-        
+
         #Residual
         out = self.res1(out, e_psi[:, self.slice_idx[0]:self.slice_idx[1], :])
         out = self.res2(out, e_psi[:, self.slice_idx[1]:self.slice_idx[2], :])
         out = self.res3(out, e_psi[:, self.slice_idx[2]:self.slice_idx[3], :])
         out = self.res4(out, e_psi[:, self.slice_idx[3]:self.slice_idx[4], :])
         out = self.res5(out, e_psi[:, self.slice_idx[4]:self.slice_idx[5], :])
-        
-        
+
         #Decoding
         out = self.resUp1(out, e_psi[:, self.slice_idx[5]:self.slice_idx[6], :])
         out = self.resUp2(out, e_psi[:, self.slice_idx[6]:self.slice_idx[7], :])
         out = self.self_att_Up(out)
         out = self.resUp3(out, e_psi[:, self.slice_idx[7]:self.slice_idx[8], :])
         out = self.resUp4(out, e_psi[:, self.slice_idx[8]:self.slice_idx[9], :])
+
         out = adaIN(out,
                     e_psi[:,
                           self.slice_idx[9]:(self.slice_idx[10]+self.slice_idx[9])//2,
@@ -119,7 +116,7 @@ class Generator(nn.Module):
         
         out = self.relu(out)
         out = self.final(out)
-        
+
         # out = self.sigmoid(out) # WHY?????????!!!!!!!!!!!!!!!!!!!!!!!
         # OR resize to 256 and center crop of 224?????????????????? 
         
@@ -153,16 +150,20 @@ class Discriminator(nn.Module):
             nn.Linear(64,1))
     
     def forward(self, face, sketch, e):
+
         out = torch.cat((face,sketch), dim=-3) #out B*4*224*224
         out = self.pad(out)
         out1 = self.resDown1(out)
         out2 = self.resDown2(out1)
         out3 = self.resDown3(out2)
+
         out = self.self_att(out3)
+
         out4 = self.resDown4(out)
         out5 = self.resDown5(out4)
         out6 = self.resDown6(out5)
         out7 = self.res(out6)
+
         out = self.sum_pooling(out7)
         out = self.relu(out)
         out = out.squeeze(-1).squeeze(-1) #out B*512*1
