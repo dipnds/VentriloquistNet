@@ -1,69 +1,65 @@
-from torch.utils.data import DataLoader
 import torch.optim as optim
 import torch
-from torch.utils.tensorboard import SummaryWriter
 import tqdm
-import numpy as np
+import matplotlib.pyplot as plt
 
-from dataprep_gan import prep
 from networks.gan import Generator, Discriminator
 from loss.loss_discriminator import LossDSCreal, LossDSCfake
 from loss.loss_generator import LossG
 
-batch_size = 1
 epochs = 10
-log_nth = 100; plot_nth = 500
+vis_nth = 5
 
 device = torch.device('cpu')
 # device = torch.device('cuda:0')
 
-modelpath = 'models'
-datapath = '../processed'
-ev_set = prep(datapath,'eval')
-ev_set.datalist = ev_set.datalist[0]
-ev_loader = DataLoader(ev_set,batch_size=batch_size,shuffle=False,num_workers=7)
+modelpath = 'models/'
+result_path = 'results/'
+face = torch.load('../processed/id00012/2DLq_Kkc1r8/face_00017.pt')
+sketch = torch.load('../processed/id00012/2DLq_Kkc1r8/sketch_00017.pt')
 
-G = torch.load('models/lastTr_G.model').to(device)
-D = torch.load('models/lastTr_D.model').to(device)
+t = 0; T = -2
+meta = torch.tensor([131.0912, 103.8827, 91.4953]).unsqueeze(-1).unsqueeze(-1)
+face_source = face[t:t+1,:,:,:].type(torch.float); face_source = (face_source - meta) / 255
+face_source = torch.cat((face_source,face_source))
+sketch_source = sketch['sketch'][t:t+1,:,:,:].type(torch.float)
+sketch_source = torch.cat((sketch_source,sketch_source))
+face_gt = face[T:T+1,:,:,:].type(torch.float); face_gt = (face_gt - meta) / 255
+face_gt = torch.cat((face_gt,face_gt))
+sketch_target = sketch['sketch'][T:T+1,:,:,:].type(torch.float)
+sketch_target = torch.cat((sketch_target,sketch_target))
 
-opG = optim.Adam(G.parameters(),lr=5e-5)
-opD = optim.Adam(D.parameters(),lr=2e-4)
+G = torch.load('models/lastTr_G.model',map_location=device)
+D = torch.load('models/lastTr_D.model',map_location=device)
+opG = optim.Adam(G.parameters(),lr=5e-5); opD = optim.Adam(D.parameters(),lr=2e-4)
+crG = LossG().to(device)
+crDreal = LossDSCreal().to(device); crDfake = LossDSCfake().to(device)
+G.train(); D.train()
 
-crG = LossG().to(device)#device=device)
-crDreal = LossDSCreal().to(device)
-crDfake = LossDSCfake().to(device)
+for param in G.enc.parameters(): param.requires_grad=True
 
-
-def train(G, D, opG, opD, crG, crDreal, crDfake, epoch):
+for epoch in range(epochs):
     
-    G.train(); D.train()
-    tr_batch = tqdm.tqdm(enumerate(ev_loader),total=len(ev_loader))
+    opG.zero_grad(); opD.zero_grad()
+    face_pred, e = G(face_source, sketch_target)
+    lab, D_pred_res_list = D(face_pred, sketch_target, e)
+    with torch.no_grad():
+        _, D_gt_res_list = D(face_gt, sketch_target, e)
+    lossG = crG(face_gt, face_pred, lab, D_gt_res_list, D_pred_res_list)
+    lossG.backward(retain_graph=False)
+    opG.step()
     
-    for batch, (face_source, sketch_source, face_gt, sketch_target) in tr_batch:
-        
-        face_source = face_source.to(device); face_gt = face_gt.to(device)
-        sketch_source = sketch_source.to(device); sketch_target = sketch_target.to(device)
-        
-        opG.zero_grad(); opD.zero_grad()
-        face_pred, e = G(face_source, sketch_target)
-        lab, D_pred_res_list = D(face_pred, sketch_target, e)
-        with torch.no_grad():
-            _, D_gt_res_list = D(face_gt, sketch_target, e)
-        lossG = crG(face_gt, face_pred, lab, D_gt_res_list, D_pred_res_list)
-        lossG.backward(retain_graph=False)
-        opG.step()
-        
-        opG.zero_grad(); opD.zero_grad()
-        face_pred.detach_().requires_grad_()
-        lab_pred, _ = D(face_pred, sketch_target, e)
-        lossDfake = crDfake(lab_pred)
-        lab_gt, _ = D(face_gt, sketch_target, e)
-        lossDreal = crDreal(lab_gt)
-        lossD = lossDfake + lossDreal
-        lossD.backward(retain_graph=False)
-        opD.step()
+    opG.zero_grad(); opD.zero_grad()
+    face_pred.detach_().requires_grad_()
+    e.detach_().requires_grad_()
+    lab_pred, _ = D(face_pred, sketch_target, e)
+    lossDfake = crDfake(lab_pred)
+    lab_gt, _ = D(face_gt, sketch_target, e)
+    lossDreal = crDreal(lab_gt)
+    lossD = lossDfake + lossDreal
+    lossD.backward(retain_graph=False)
+    opD.step()
             
-    meta = torch.tensor([131.0912, 103.8827, 91.4953]).unsqueeze(-1).unsqueeze(-1)
     vis_img = torch.zeros(3,sketch_source.shape[2],sketch_source.shape[3])
     vis_img[0,:,:] = vis_img[0,:,:] + sketch_source[0,:,:,:].detach().cpu()
     vis_img[2,:,:] = vis_img[2,:,:] + sketch_target[0,:,:,:].detach().cpu()
@@ -72,8 +68,6 @@ def train(G, D, opG, opD, crG, crDreal, crDfake, epoch):
                          (face_gt[0,:,:,:].detach().cpu() * 255 + meta)/255,
                          (face_pred[0,:,:,:].detach().cpu() * 255 + meta)/255),
                          axis=1)
-    torch.save('sample.pt', vis_img)
+    torch.save(vis_img, result_path + 'sample_' + str(epoch)+ '.pt')
+    print(epoch)
     
-    
-for epoch in range(epochs):
-    train(G,D,opG,opD,crG,crDreal,crDfake,epoch)
