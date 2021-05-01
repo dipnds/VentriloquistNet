@@ -21,9 +21,9 @@ modelpath = 'models/'
 datapath = '/storage/user/dasd/vox2/dev/processed'
 tr_set = prep(datapath,'train')
 ev_set = prep(datapath,'eval')
-tr_loader = DataLoader(tr_set,batch_size=batch_size,shuffle=False,num_workers=15)
+tr_loader = DataLoader(tr_set,batch_size=batch_size,shuffle=True,num_workers=15)
 ev_loader = DataLoader(ev_set,batch_size=batch_size,shuffle=False,num_workers=15)
-name = '_ganEp19'; writer = SummaryWriter(comment=name)
+name = '_ganEp70'; writer = SummaryWriter(comment=name)
 
 # G = Generator().to(device); D = Discriminator().to(device)
 G = torch.load(modelpath+'lastTr_G.model',map_location=device)
