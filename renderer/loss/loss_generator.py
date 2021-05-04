@@ -15,7 +15,8 @@ class LossCnt(nn.Module):
         self.l1_loss = nn.L1Loss()
         self.conv_idx_list = [2,7,12,21,30] #idxes of conv layers in VGG19 cf.paper
 
-    def forward(self, gt, pred, vgg19_weight=1.5e-1, vggface_weight=2.5e-2):        
+    def forward(self, gt, pred, vgg19_weight=1.5e-1, vggface_weight=2.5e-2):
+        # vgg19_weight=1.5e-1   vggface_weight=2.5e-2
 
         gt_face_f = self.VGGFace(gt)
         pred_face_f = self.VGGFace(pred)
