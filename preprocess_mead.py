@@ -74,6 +74,6 @@ fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D,flip_input=Fa
                                   device='cuda',face_detector='blazeface') # default 'sfd'
 
 # loop over subsets
-a = 0; b = 3
+a = 44; b = 48
 print(a,b)
 video_processing_loop(file_list[a:b], path_in, path_out, fa)
