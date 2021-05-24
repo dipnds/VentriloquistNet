@@ -13,7 +13,7 @@ class prep(Dataset):
         
         if not os.path.isfile('../datalist_'+subset+'.pkl'):
         
-            person_list = pkl.load(open('../split.pkl','rb'))[subset]
+            person_list = pkl.load(open('../split_vox2.pkl','rb'))[subset]
             self.datalist = []
             for person in person_list:
                 try:

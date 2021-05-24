@@ -30,6 +30,7 @@ class prep(Dataset):
         
         filename = self.datalist[idx]
         triplet = torch.load(self.path+filename)
+        del triplet['face0'], triplet['faceT'], triplet['sketch0'], triplet['sketchT']
         
         mel = triplet['mel']
         mel -= self.mean_mel; mel /= self.std_mel
@@ -53,5 +54,7 @@ class prep(Dataset):
         triplet['key0'] = torch.flatten(key0)
         triplet['keyT'] = torch.flatten(keyT)
         triplet['orienT'] = torch.flatten(orienT)
+        
+        print(filename)
         
         return triplet

@@ -14,11 +14,11 @@ model = torch.load('models/bestEv_network3_'+kp_mode+'kp.model')
 
 device = torch.device('cuda:0')
 path = '/media/deepan/Backup/thesis/dataset_voxceleb/'
-batch_size = 64
-ev_set = prep(path+'triplets/','train', del_mode=del_mode, kp_mode=kp_mode)
-ev_loader = DataLoader(ev_set,batch_size=batch_size,shuffle=False,num_workers=2)
+batch_size = 4
+ev_set = prep(path+'triplets/','train')#, del_mode=del_mode, kp_mode=kp_mode)
+ev_loader = DataLoader(ev_set,batch_size=batch_size,shuffle=False,num_workers=0)
 
-norm = torch.load(path+'triplets/norm_'+kp_mode+'KP.pt')
+norm = torch.load(path+'triplets/norm.pt')
 
 keypointsT = np.zeros((0,68,2)); keypointsP = np.zeros((0,68,2)); keypoints0 = np.zeros((0,68,2))
 model.eval()
@@ -53,7 +53,7 @@ with open('vox1_meta.csv') as match_key:
     csv_reader = csv.reader(match_key, delimiter='\t')
     split = 1211
     for i,row in enumerate(csv_reader):
-        if i>100 and i<=140:
+        if i>100 and i<=112:
         # if i>split:# and i<=1214:
             file_face = path+'unzippedIntervalFaces/data/'+row[1]+'/1.6/'
             vid_list = os.listdir(file_face); vid_list.sort()

@@ -120,13 +120,13 @@ with open('vox2_meta.csv') as meta:
 
 # train eval split
 file_list = id_list['dev']
-if not os.path.isfile('split.pkl'):
+if not os.path.isfile('split_vox2.pkl'):
     np.random.seed(0)
     idx = np.random.choice(len(id_list['dev']),len(id_list['test']),replace=False)
     id_list['eval'] = [id_list['dev'][i] for i in idx]
     id_list['train'] = list(set(id_list['dev']) - set(id_list['eval']))
     del id_list['dev']
-    pkl.dump(id_list,open('split.pkl','wb'))
+    pkl.dump(id_list,open('split_vox2.pkl','wb'))
 
 # init face alignment
 fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D,flip_input=False,
