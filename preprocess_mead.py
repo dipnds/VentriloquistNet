@@ -4,7 +4,6 @@ import torch
 from torchvision.io import read_video
 import tqdm
 import pickle as pkl
-import time
 
 import face_alignment
 
@@ -15,36 +14,45 @@ path_out = path_root+'processed/'
 
 def video_processing_loop(person_list, path_in, path_out, fa):
     
-    pov_list = ['front','left_30','right_30','left_60','right_60','top','down']
+    pov_list = ['left_30','right_30','left_60','right_60','top','down']
     emo_list = ['neutral','angry','contempt','disgusted','fear','happy','sad','surprised']
     
     for person in person_list:
         if os.path.isdir(path_in+person):
-            pov_list = tqdm.tqdm(pov_list,total=len(pov_list))
-            for pov in pov_list:
-                pov_list.set_description(person+'/'+pov)
-                for emo in emo_list:
+            emo_list = tqdm.tqdm(emo_list,total=len(emo_list))
+            for emo in emo_list:
+                emo_list.set_description(person+'/'+emo)
+                
+                if emo == 'neutral':
+                    lvl_list = ['level_1']
+                else: lvl_list = ['level_1', 'level_2', 'level_3']
+                for lvl in lvl_list:
                     
-                    if emo == 'neutral':
-                        lvl_list = ['level_1']
-                    else: lvl_list = ['level_1', 'level_2', 'level_3']
-                    for lvl in lvl_list:
-                        
-                        utter_list = os.listdir(path_in+person+'/video/'+pov+'/'+emo+'/'+lvl)
-                        for utter in utter_list:
-                                                
-                            try:
-                                (frame,_,_) = read_video(path_in+person+'/video/'+pov+'/'+emo+'/'+lvl+'/'+utter)
-                                frame = frame.permute(0,3,1,2)
-                                video_kp = fa.get_landmarks_from_batch(frame)
-                                video_kp = torch.tensor(np.stack(video_kp)); video_kp = video_kp.type(torch.int16)
-                                
-                                if not os.path.isdir(path_out+person+'/'+emo+'/'+lvl+'/'+utter[:-4]):
-                                    os.makedirs(path_out+person+'/'+emo+'/'+lvl+'/'+utter[:-4])
-                                torch.save(video_kp,path_out+person+'/'+emo+'/'+lvl+'/'+utter[:-4]+'/'+pov+'.pt')
-                                
-                            except:
-                                print(person+'/video/'+pov+'/'+emo+'/'+lvl+'/'+utter)
+                    utter_list = os.listdir(path_in+person+'/video/front/'+emo+'/'+lvl)
+                    for utter in utter_list:
+                                            
+                        try:
+                            (frame,_,_) = read_video(path_in+person+'/video/front/'+emo+'/'+lvl+'/'+utter)
+                            frame = frame.permute(0,3,1,2)
+                            video_kp = fa.get_landmarks_from_batch(frame)
+                            video_kp = torch.tensor(np.stack(video_kp)); video_kp = video_kp.type(torch.int16)
+                            
+                            if not os.path.isdir(path_out+person+'/'+emo+'/'+lvl+'/'+utter[:-4]):
+                                os.makedirs(path_out+person+'/'+emo+'/'+lvl+'/'+utter[:-4])
+                            torch.save(video_kp,path_out+person+'/'+emo+'/'+lvl+'/'+utter[:-4]+'/kp_seq.pt')
+                            
+                            for pov in pov_list:
+                                try:
+                                    (frame,_,_) = read_video(path_in+person+'/video/'+pov+'/'+emo+'/'+lvl+'/'+utter,
+                                                            0,0.03,pts_unit='sec')
+                                    kp = fa.get_landmarks_from_image(frame[0])
+                                    kp = torch.tensor(kp[0]).type(torch.int16)
+                                    torch.save(kp,path_out+person+'/'+emo+'/'+lvl+'/'+utter[:-4]+'/'+pov+'_kp.pt')
+                                except:
+                                    print(person+'/video/'+pov+'/'+emo+'/'+lvl+'/'+utter)
+                            
+                        except:
+                            print(person+'/video/'+emo+'/'+lvl+'/'+utter)
                                                         
     return 0
                     
@@ -66,6 +74,6 @@ fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D,flip_input=Fa
                                   device='cuda',face_detector='blazeface') # default 'sfd'
 
 # loop over subsets
-a = 6; b = 8
+a = 0; b = 3
 print(a,b)
 video_processing_loop(file_list[a:b], path_in, path_out, fa)
