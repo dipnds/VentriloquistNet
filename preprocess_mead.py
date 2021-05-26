@@ -4,8 +4,10 @@ import torch
 from torchvision.io import read_video
 import tqdm
 import pickle as pkl
+import subprocess
 
 import face_alignment
+import audio
 
 path_root = '/storage/user/dasd/mead/'
 #path_root = '/media/deepan/Backup/thesis/mead/'
@@ -55,7 +57,44 @@ def video_processing_loop(person_list, path_in, path_out, fa):
                             print(person+'/video/'+emo+'/'+lvl+'/'+utter)
                                                         
     return 0
+ 
+def audio_processing_loop(person_list, path_in, path_out):
+    
+    emo_list = ['neutral','angry','contempt','disgusted','fear','happy','sad','surprised']
+    
+    for person in person_list:
+        if os.path.isdir(path_in+person):
+            emo_list = tqdm.tqdm(emo_list,total=len(emo_list))
+            for emo in emo_list:
+                emo_list.set_description(person+'/'+emo)
+                
+                if emo == 'neutral':
+                    lvl_list = ['level_1']
+                else: lvl_list = ['level_1', 'level_2', 'level_3']
+                for lvl in lvl_list:
                     
+                    utter_list = os.listdir(path_in+person+'/audio/'+emo+'/'+lvl)
+                    for utter in utter_list:
+                        
+                        try:
+                            fname = path_in+person+'/audio/'+emo+'/'+lvl+'/'+utter
+                            fname_wav = path_in+person+'/audio/'+emo+'/'+lvl+'/'+utter[:-4]+'.wav'
+                            command = 'ffmpeg -hide_banner -loglevel error -y -i {} -strict -2 {}'.format(fname, fname_wav)
+                            subprocess.call(command, shell=True)
+    
+                            speech = audio.load_wav(fname_wav, 16000)
+                            mel = audio.melspectrogram(speech)
+                            mel = torch.tensor(mel)
+                            os.remove(fname_wav)
+    
+                            if not os.path.isdir(path_out+person+'/'+emo+'/'+lvl+'/'+utter[:-4]):
+                                    os.makedirs(path_out+person+'/'+emo+'/'+lvl+'/'+utter[:-4])
+                            torch.save(mel,path_out+person+'/'+emo+'/'+lvl+'/'+utter[:-4]+'/mel.pt')
+                        
+                        except:
+                            print(person+'/audio/'+emo+'/'+lvl+'/'+utter)
+                    
+    
 # make a list of person IDs in the target subset
 id_list = {'dev':os.listdir(path_in)}; id_list['dev'].sort()
 
@@ -70,10 +109,11 @@ if not os.path.isfile('split_mead.pkl'):
     pkl.dump(id_list,open('split_mead.pkl','wb'))
 
 # init face alignment
-fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D,flip_input=False,
-                                  device='cuda',face_detector='blazeface') # default 'sfd'
+# fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D,flip_input=False,
+                                  # device='cuda',face_detector='blazeface') # default 'sfd'
 
 # loop over subsets
-a = 44; b = 48
+a = 0; b = 3
 print(a,b)
-video_processing_loop(file_list[a:b], path_in, path_out, fa)
+# video_processing_loop(file_list[a:b], path_in, path_out, fa)
+audio_processing_loop(file_list, path_in, path_out)
