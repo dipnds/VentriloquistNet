@@ -25,7 +25,7 @@ class prep(Dataset):
                 except: pass
             pkl.dump(self.datalist,open('../datalist_'+subset+'.pkl','wb'))
         
-        else: self.datalist = pkl.load(open('../datalist_'+subset+'.pkl','rb'))
+        else: self.datalist = pkl.load(open('../datalist_vox2_'+subset+'.pkl','rb'))
         
         self.meta = torch.tensor([131.0912, 103.8827, 91.4953]).unsqueeze(-1).unsqueeze(-1)
                                 

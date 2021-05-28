@@ -7,17 +7,29 @@ class prep(Dataset):
     
     def __init__(self, path, split):
         
-        person_list = pkl.load(open('split_mead.pkl','rb'))[split]
-        datalist = []
-        for person in person_list:
-            for emo in os.listdir(path+person):
-                for level in os.listdir(path+person+'/'+emo):
-                    for utter in os.listdir(path+person+'/'+emo+'/'+level):
-                        temp = os.listdir(path+person+'/'+emo+'/'+level+'/'+utter)
-                        temp.remove('mel.pt'); temp.remove('kp_seq.pt')
-                        temp.sort()
-                        datalist.append((path+person+'/'+emo+'/'+level+'/'+utter+'/',temp))
-        self.datalist = datalist
+        if not os.path.isfile('../datalist_mead_'+split+'.pkl'):
+
+            person_list = pkl.load(open('../split_mead.pkl','rb'))[split]
+            datalist = []
+            for person in person_list:
+                for emo in os.listdir(path+person):
+                    for level in os.listdir(path+person+'/'+emo):
+                        for utter in os.listdir(path+person+'/'+emo+'/'+level):
+                            temp = os.listdir(path+person+'/'+emo+'/'+level+'/'+utter)
+                            try:
+                                temp.remove('kp_seq.pt')
+                                try:
+                                    temp.remove('mel.pt');
+                                except:
+                                    print('Missing mel : ',path+person+'/'+emo+'/'+level+'/'+utter)
+                                temp.sort()
+                                datalist.append((path+person+'/'+emo+'/'+level+'/'+utter+'/',temp))
+                            except:
+                                print('Missing front : ',path+person+'/'+emo+'/'+level+'/'+utter)
+            self.datalist = datalist
+            pkl.dump(datalist,open('../datalist_mead_'+split+'.pkl','wb'))
+
+        else: self.datalist = pkl.load(open('../datalist_mead_'+split+'.pkl','rb'))
         
         self.label_dict = {'down_kp.pt':torch.tensor([0,-1]), 'top_kp.pt':torch.tensor([0,1]),
                            'left_30_kp.pt':torch.tensor([-1/3,0]), 'right_30_kp.pt':torch.tensor([1/3,0]),
@@ -49,6 +61,6 @@ class prep(Dataset):
             ip.append(temp)
         
         ip = torch.stack(ip); target = torch.stack(target)
-        print(ip.shape, target.shape)
-        
+        ip = torch.nn.functional.pad(ip,(0,0,0,6 - ip.shape[0]),"constant",0)
+        target = torch.nn.functional.pad(target,(0,0,0,6 - target.shape[0]),"constant",0)
         return (ip, target)

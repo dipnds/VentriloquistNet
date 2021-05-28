@@ -9,7 +9,11 @@ class Net(nn.Module):
         self.fc = nn.Sequential(
             nn.Linear(138, 138),
             nn.ReLU(inplace=True),
+            nn.Linear(138, 138),
+            nn.ReLU(inplace=True),
             nn.Linear(138, 136),
+            nn.ReLU(inplace=True),
+            nn.Linear(136, 136),
             nn.ReLU(inplace=True),
             nn.Linear(136, 136)
             )

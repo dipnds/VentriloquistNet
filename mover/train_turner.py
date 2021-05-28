@@ -8,17 +8,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 from torchvision.io import read_image
 
-from dataprep import prep
-import networks.network3 as network
+from dataprep_turner import prep
+import networks.turner as network
 
-batch_size = 4
+batch_size = 8
 epochs = 10
 log_nth = 10; plot_nth = 50
 
 device = torch.device('cuda:0')
 
 modelpath = 'models/'
-datapath = '/media/deepan/Backup/thesis/mead/processed/'
+#datapath = '/media/deepan/Backup/thesis/mead/processed/'
+datapath = '/storage/user/dasd/mead/processed/'
 tr_set = prep(datapath,'train')
 ev_set = prep(datapath,'eval')
 tr_loader = DataLoader(tr_set,batch_size=batch_size,shuffle=True,num_workers=4)
@@ -34,8 +35,8 @@ def train(model, epoch):
     tr_batch = tqdm.tqdm(enumerate(tr_loader),total=len(tr_loader))
     
     for batch, (ip, target) in tr_batch:
-        ip = ip.to(device); target = target.to(device)
-        
+        ip = ip.to(device).view(-1,138); target = target.to(device).view(-1,136)
+
         optimizer.zero_grad()
         pred = model(ip)
         loss = criterion(target,pred)
@@ -48,9 +49,10 @@ def train(model, epoch):
         if (batch+1)%plot_nth == 0:
             writer.add_scalar('Loss/tr', np.mean(tr_loss), epoch+batch/len(tr_loader))
             
-        pred = pred[0].view((-1,2)); target = target[0].view((-1,2))
+        pred = pred[0].view((-1,2)).cpu().detach().numpy(); target = target[0].view((-1,2)).cpu().detach().numpy()
         f = plt.figure()
-        f = plt.scatter(-pred[:,0],-pred[:,1],2,'r'); f = plt.scatter(-target[:,0],-target[:,1],2,'b')
+        # f = plt.scatter(-pred[:,0],-pred[:,1],2,'r'); f = plt.scatter(-target[:,0],-target[:,1],2,'b')
+        plt.scatter(-pred[:,0],-pred[:,1],2,'r'); plt.scatter(-target[:,0],-target[:,1],2,'b')
         writer.add_figure('KP/tr', f, epoch)
         
     torch.save(model, modelpath+'bestTr_'+name+'.model')
@@ -63,7 +65,7 @@ def eval(model, epoch, best_loss, scheduler):
         ev_batch = tqdm.tqdm(enumerate(ev_loader),total=len(ev_loader))
         
         for batch, (ip, target) in ev_batch:
-            ip = ip.to(device); target = target.to(device)
+            ip = ip.to(device).view(-1,138); target = target.to(device).view(-1,136)
             
             pred = model(ip)
             loss = criterion(target,pred)
@@ -77,7 +79,7 @@ def eval(model, epoch, best_loss, scheduler):
         
         pred = pred[0].view((-1,2)); target = target[0].view((-1,2))
         f = plt.figure()
-        f = plt.scatter(-pred[:,0],-pred[:,1],2,'r'); f = plt.scatter(-target[:,0],-target[:,1],2,'b')
+        plt.scatter(-pred[:,0],-pred[:,1],2,'r'); plt.scatter(-target[:,0],-target[:,1],2,'b')
         writer.add_figure('KP/ev', f, epoch)
         
         if best_loss is None or loss < best_loss:
