@@ -11,7 +11,7 @@ class prep(Dataset):
         # if split == 'train': person_list = ['id00012','id00015']
         # if split == 'eval': person_list = ['id00016']
         
-        if not os.path.isfile('../datalist_'+subset+'.pkl'):
+        if not os.path.isfile('../datalist_vox2_'+subset+'.pkl'):
         
             person_list = pkl.load(open('../split_vox2.pkl','rb'))[subset]
             self.datalist = []
