@@ -150,8 +150,8 @@ if not os.path.isfile('split_mead.pkl'):
                                   # device='cuda',face_detector='blazeface') # default 'sfd'
 
 # loop over subsets
-a = 0; b = 3
+a = 36; b = 47
 print(a,b)
 # video_process(file_list[a:b], path_in, path_out, fa)
 # audio_process_wav2lip(file_list, path_in, path_out)
-audio_process_emo(file_list, path_in, path_out)
+audio_process_emo(file_list[a:b], path_in, path_out)
