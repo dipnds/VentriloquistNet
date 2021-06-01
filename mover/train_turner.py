@@ -77,7 +77,7 @@ def eval(model, epoch, best_loss, scheduler):
         loss = np.mean(ev_loss)
         writer.add_scalar('Loss/ev', loss, epoch)
         
-        pred = pred[0].view((-1,2)); target = target[0].view((-1,2))
+        pred = pred[0].view((-1,2)).cpu().detach().numpy(); target = target[0].view((-1,2)).cpu().detach().numpy()
         f = plt.figure()
         plt.scatter(-pred[:,0],-pred[:,1],2,'r'); plt.scatter(-target[:,0],-target[:,1],2,'b')
         writer.add_figure('KP/ev', f, epoch)
