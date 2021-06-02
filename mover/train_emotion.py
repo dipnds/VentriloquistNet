@@ -7,7 +7,7 @@ import os, tqdm
 import numpy as np
 
 from dataprep_emotion import prep
-import networks.emo_classifier as network
+import networks.emo_classifier_seq as network
 
 batch_size = 16
 epochs = 100

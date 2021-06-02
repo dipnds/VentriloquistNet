@@ -18,16 +18,19 @@ class prep(Dataset):
         self.lab_list = self.lab_list[:,:7] + self.lab_list[:,7:]
         self.lab_list = np.argmax(self.lab_list,axis=1)
         
-        self.mean = np.mean(datadict['feat_train'], axis=0)
-        self.std = np.std(datadict['feat_train'], axis=0)
+        self.mean = np.mean(datadict['feat_train'], axis=(0,2))
+        self.mean = torch.tensor(self.mean).float().unsqueeze(-1)
+        self.std = np.std(datadict['feat_train'], axis=(0,2))
+        self.std = torch.tensor(self.std).float().unsqueeze(-1)
                 
     def __len__(self):
         return len(self.feat_list)
     
     def __getitem__(self, idx):
         
-        start = np.random.randint(0,216-87)
-        ip = torch.tensor(self.feat_list[idx,:,start:start+87,:]).float()
+        start = np.random.randint(0,216-90)
+        ip = torch.tensor(self.feat_list[idx,:,start:start+90,:]).float()
+        ip = (ip - self.mean) / self.std
         ip = ip.permute((2,0,1))
         target = torch.tensor(self.lab_list[idx])
         
