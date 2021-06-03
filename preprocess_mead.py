@@ -12,8 +12,8 @@ import face_alignment
 import audio
 import time
 
-#path_root = '/storage/user/dasd/mead/'
-path_root = '/media/deepan/Backup/thesis/mead/'
+path_root = '/storage/user/dasd/mead/'
+#path_root = '/media/deepan/Backup/thesis/mead/'
 path_in = path_root+'raw/'
 path_out = path_root+'processed/'
 
@@ -115,8 +115,8 @@ if not os.path.isfile('split_mead.pkl'):
                                   # device='cuda',face_detector='blazeface') # default 'sfd'
 
 # loop over subsets
-a = 0; b = 12
+a = 33; b = 36
 print(a,b)
-# video_process(file_list[a:b], path_in, path_out, fa)
-# audio_process_wav2lip(file_list, path_in, path_out)
+video_process(file_list[a:b], path_in, path_out, fa)
 audio_process(file_list[a:b], path_in, path_out)
+
