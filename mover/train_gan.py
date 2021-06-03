@@ -18,8 +18,8 @@ log_nth = 100; plot_nth = 500
 device = torch.device('cuda:0')
 
 modelpath = 'models/'
-# datapath = '/media/deepan/Backup/thesis/mead/processed/'
-datapath = '/storage/user/dasd/mead/processed/'
+datapath = '/media/deepan/Backup/thesis/mead/processed/'
+# datapath = '/storage/user/dasd/mead/processed/'
 tr_set = prep(datapath,'train')
 ev_set = prep(datapath,'eval')
 tr_loader = DataLoader(tr_set,batch_size=batch_size,shuffle=True,num_workers=6)

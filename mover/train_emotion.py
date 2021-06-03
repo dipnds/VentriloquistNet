@@ -16,12 +16,12 @@ log_nth = 100; plot_nth = 500
 device = torch.device('cuda:0')
 
 modelpath = 'models/'
-datapath = '/media/deepan/Backup/thesis/'
-#datapath = '/storage/user/dasd/mead/processed/'
+# datapath = '/media/deepan/Backup/thesis/'
+datapath = '/storage/user/dasd/'
 tr_set = prep(datapath,'train')
 ev_set = prep(datapath,'eval')
-tr_loader = DataLoader(tr_set,batch_size=batch_size,shuffle=True,num_workers=5,drop_last=True)
-ev_loader = DataLoader(ev_set,batch_size=batch_size,shuffle=False,num_workers=4,drop_last=True)
+tr_loader = DataLoader(tr_set,batch_size=batch_size,shuffle=True,num_workers=6,drop_last=True)
+ev_loader = DataLoader(ev_set,batch_size=batch_size,shuffle=False,num_workers=5,drop_last=True)
 
 name = network.__name__.split('.')[1]
 writer = SummaryWriter(comment=name)

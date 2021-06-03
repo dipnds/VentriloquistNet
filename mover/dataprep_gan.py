@@ -9,8 +9,8 @@ class prep(Dataset):
     
     def __init__(self, path, split):
         
-        # mfcc = pkl.load(open('/media/deepan/Backup/thesis/'+'emo_data.pkl','rb'))['feat_train']
-        mfcc = pkl.load(open('/storage/user/dasd/'+'emo_data.pkl','rb'))['feat_train']
+        mfcc = pkl.load(open('/media/deepan/Backup/thesis/'+'emo_data.pkl','rb'))['feat_train']
+        # mfcc = pkl.load(open('/storage/user/dasd/'+'emo_data.pkl','rb'))['feat_train']
         self.mfcc_mean = np.mean(mfcc, axis=(0,2))
         self.mfcc_mean = torch.tensor(self.mfcc_mean).float().unsqueeze(-1)
         self.mfcc_std = np.std(mfcc, axis=(0,2))
@@ -22,8 +22,8 @@ class prep(Dataset):
             datalist = []
             
             # dummy subset
-            # if split == 'train': person_list = ['M005']
-            # else: person_list = ['M003']
+            if split == 'train': person_list = ['M005']
+            else: person_list = ['M003']
             
             for person in person_list:
                 for emo in os.listdir(path+person):

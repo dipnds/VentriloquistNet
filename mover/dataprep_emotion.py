@@ -28,8 +28,8 @@ class prep(Dataset):
     
     def __getitem__(self, idx):
         
-        start = np.random.randint(0,216-90)
-        ip = torch.tensor(self.feat_list[idx,:,start:start+90,:]).float()
+        start = np.random.randint(0,184-92)
+        ip = torch.tensor(self.feat_list[idx,:,start:start+92,:]).float()
         ip = (ip - self.mean) / self.std
         ip = ip.permute((2,0,1))
         target = torch.tensor(self.lab_list[idx])
