@@ -111,8 +111,8 @@ if not os.path.isfile('split_mead.pkl'):
     pkl.dump(id_list,open('split_mead.pkl','wb'))
 
 # init face alignment
-# fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D,flip_input=False,
-                                  # device='cuda',face_detector='blazeface') # default 'sfd'
+fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D,flip_input=False,
+                                   device='cuda',face_detector='blazeface') # default 'sfd'
 
 # loop over subsets
 a = 33; b = 36

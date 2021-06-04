@@ -52,7 +52,7 @@ class prep(Dataset):
         mfcc = torch.load(path + 'mfcc.pt')
         kp_seq = torch.load(path + 'kp_seq.pt')
         
-        kp_start = np.random.randint(0,kp_seq.shape[0]-fps-1)
+        kp_start = np.random.randint(1,kp_seq.shape[0]-fps-1)
         mfcc_start = int(kp_start * (mfcc.shape[1] / kp_seq.shape[0]))
         mel_start = int(kp_start * (mel.shape[1] / kp_seq.shape[0]))
         
@@ -62,13 +62,13 @@ class prep(Dataset):
         kp_seq = (kp_seq - m) / s
         kp_seq = kp_seq.flatten(start_dim=1)
                 
-        mfcc = mfcc[:,mfcc_start:mfcc_start+90,:]
+        mfcc = mfcc[:,mfcc_start-1:mfcc_start+fps*3+1,:]
         mfcc = (mfcc - self.mfcc_mean) / self.mfcc_std
         mfcc = mfcc.permute((2,0,1))
         
-        mel = mel[:,mel_start:mel_start+80]
-        mel = mel.unsqueeze(0)
-        
+        mel = mel[:,mel_start-1:mel_start+fps*3+1]
+        mel = mel.permute((2,0,1))
+
         # negative example of kp for D_lipsync training
         L = list(np.arange(0,len(self.datalist)))
         L.pop(idx)
@@ -80,5 +80,10 @@ class prep(Dataset):
         s = neg_kp_seq.std(dim=(0,1),keepdims=True)
         neg_kp_seq = (neg_kp_seq - m) / s
         neg_kp_seq = neg_kp_seq.flatten(start_dim=1)
+        
+        if kp_seq.shape != torch.Size((30,136)) or neg_kp_seq.shape != torch.Size((30,136)):
+            print('kp error')
+        if mel.shape != torch.Size((1,80,92)) or mfcc.shape != torch.Size((1,30,92)):
+            print('mel error')
         
         return (mel.float(), mfcc.float(), kp_seq, neg_kp_seq)
