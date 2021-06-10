@@ -52,7 +52,6 @@ class prep(Dataset):
         fps = 30
         
         path = self.datalist[idx]
-        mel = torch.load(path + 'mel.pt')
         mfcc = torch.load(path + 'mfcc.pt')
         kp_seq = torch.load(path + 'kp_seq.pt')
                 
@@ -75,8 +74,6 @@ class prep(Dataset):
         gt = self.map[path.split('/')[-4]]
         
         if kp_seq.shape[0] < fps: kp_seq = F.pad(kp_seq,(0,0,0,fps-kp_seq.shape[0]))
-                
-        if mel.shape[2] < fps*3+2: mel = F.pad(mel,(0,fps*3+2-mel.shape[2],0,0,0,0))
         if mfcc.shape[2] < fps*3+2: mfcc = F.pad(mfcc,(0,fps*3+2-mfcc.shape[2],0,0,0,0))
         
         return (mfcc.float(), kp_seq, gt)
