@@ -4,13 +4,16 @@ import torch
 def init_weights(m):
     if isinstance(m, nn.Linear):
         nn.init.normal_(m.weight,mean=0,std=0.008)
-        # nn.init.constant_(m.bias,0.001)
+        # nn.init.constant_(m.bias,-0.001)
     if isinstance(m, nn.LSTM):
         nn.init.orthogonal_(m.weight_ih_l0, gain=nn.init.calculate_gain('tanh'))
         nn.init.orthogonal_(m.weight_hh_l0, gain=nn.init.calculate_gain('tanh'))
     # if isinstance(m, nn.Linear):
     #     nn.init.xavier_normal_(m.weight, gain=nn.init.calculate_gain('tanh')*0.2)
     #     nn.init.constant_(m.bias, -0.1) # cancelled by batchnorm
+    if isinstance(m, nn.Conv1d):
+        nn.init.xavier_normal_(m.weight, gain=nn.init.calculate_gain('leaky_relu',0.1)*0.01)
+        # nn.init.constant_(m.weight_hh_l0, gain=nn.init.calculate_gain('tanh'))
 
 
 class Generator(nn.Module):
@@ -44,58 +47,64 @@ class Generator(nn.Module):
             nn.LeakyReLU(negative_slope=0.1,inplace=True)
             )
         
-        self.mel_lstm_1 = nn.LSTM(512*5,256,bidirectional=True)
-        self.mel_lstm_2 = nn.LSTM(256*2,136,bidirectional=True)
+        # self.lip_conv = nn.Sequential(
+        #     nn.Conv1d(512*5, 512, 3, padding=1), # 512, 30
+        #     nn.BatchNorm1d(512),
+        #     nn.LeakyReLU(negative_slope=0.1,inplace=True),
+        #     nn.Conv1d(512, 136*2, 3, padding=1), # 272, 30
+        #     nn.BatchNorm1d(136*2),
+        #     nn.LeakyReLU(negative_slope=0.1,inplace=True),
+        #     nn.Conv1d(136*2, 136*2, 3, padding=1), # 272, 30
+        #     nn.BatchNorm1d(136*2),
+        #     nn.LeakyReLU(negative_slope=0.1,inplace=True),
+        #     nn.Conv1d(136*2, 136, 5, padding=2), # 136, 30
+        #     nn.Tanh()
+        #     )
         
-        self.mel_fc = nn.Sequential(
-            nn.Linear(136*2, 136*2),
+        # self.emo_conv = nn.Sequential(
+        #     nn.Conv1d(128, 136*2, 3, padding=1), # 512, 30
+        #     nn.BatchNorm1d(136*2),
+        #     nn.LeakyReLU(negative_slope=0.1,inplace=True),
+        #     nn.Conv1d(136*2, 136*2, 3, padding=1), # 272, 30
+        #     nn.BatchNorm1d(136*2),
+        #     nn.LeakyReLU(negative_slope=0.1,inplace=True),
+        #     nn.Conv1d(136*2, 136, 5, padding=2), # 136, 30
+        #     nn.Tanh()
+        #     )
+        
+        # self.lip_conv.apply(init_weights)
+        # self.emo_conv.apply(init_weights)
+        
+        self.combo_conv = nn.Sequential(
+            nn.Conv1d(512*5+128, 512, 3, padding=1), # 512, 30
+            nn.BatchNorm1d(512),
+            nn.LeakyReLU(negative_slope=0.1,inplace=True),
+            nn.Conv1d(512, 136*2, 3, padding=1), # 272, 30
             nn.BatchNorm1d(136*2),
             nn.LeakyReLU(negative_slope=0.1,inplace=True),
-            # nn.Tanh(),
-            nn.Linear(136*2, 136),
+            nn.Conv1d(136*2, 136*2, 3, padding=1), # 272, 30
+            nn.BatchNorm1d(136*2),
+            nn.LeakyReLU(negative_slope=0.1,inplace=True),
+            nn.Conv1d(136*2, 136, 5, padding=2), # 136, 30
             nn.Tanh()
             )
         
-        # self.mfcc_lstm_1 = nn.LSTM(128,136,bidirectional=True)
-        # self.mfcc_lstm_2 = nn.LSTM(136*2,136,bidirectional=False)
-        
-        # self.common1 = nn.LSTM(136,136,bidirectional=True)
-        # self.common2 = nn.LSTM(136*2,136,bidirectional=True)
-        # self.common3 = nn.LSTM(136*2,136,bidirectional=False)
-        
-        self.mel_lstm_1.apply(init_weights)
-        self.mel_lstm_2.apply(init_weights)
-        self.mel_fc.apply(init_weights)
-    
     def forward(self, mel, feat_emo):
         
         mel = self.mel_conv(mel)
         mel = mel.view(-1, 512*5, 30) # B, F, T
-        mel = mel.permute(2,0,1) # T, B, F
+        feat_emo = feat_emo.squeeze(2) # B, F, T
         
-        lip_kp, _ = self.mel_lstm_1(mel)
-        lip_kp, _ = self.mel_lstm_2(lip_kp)
+        # lip_kp = self.lip_conv(mel)
+        # lip_kp = lip_kp.permute(0,2,1) # B, T, F
+        # emo_kp = self.emo_conv(feat_emo)
+        # emo_kp = emo_kp.permute(0,2,1) # B, T, F
         
-        lip_kp = lip_kp.reshape((-1,136*2))
-        lip_kp = self.mel_fc(lip_kp)
-        lip_kp = lip_kp.reshape((30,-1,136))
+        combo_kp = torch.cat((mel,feat_emo),dim=1) # B, F, T
+        combo_kp = self.combo_conv(combo_kp)
+        combo_kp = combo_kp.permute(0,2,1) # B, T, F
         
-        # feat_emo = feat_emo.view(-1, 128, 30)
-        # feat_emo = feat_emo.permute(2,0,1)
-        
-        # expression_residue, _ = self.mfcc_lstm_1(feat_emo)
-        # expression_residue, _ = self.mfcc_lstm_2(expression_residue)
-        
-        # full_kp = lip_kp + expression_residue
-        
-        # full_kp, _ = self.common1(full_kp)
-        # full_kp, _ = self.common2(full_kp)
-        # full_kp, _ = self.common3(full_kp)
-        
-        # make batch first dim again
-        lip_kp = lip_kp.permute(1,0,2) # B, T, F
-        
-        return lip_kp#, full_kp
+        return combo_kp # lip_kp, emo_kp
     
     @property
     def is_cuda(self):
@@ -109,6 +118,7 @@ class Discriminator_RealFakeSeq(nn.Module):
         
         self.seq_lstm_1 = nn.LSTM(136,32,bidirectional=True)
         self.seq_lstm_2 = nn.LSTM(32*2,8,bidirectional=True)
+        
         self.seq_fc = nn.Sequential(
             nn.Linear(30*16, 64),
             nn.BatchNorm1d(64),
@@ -120,6 +130,7 @@ class Discriminator_RealFakeSeq(nn.Module):
             nn.Sigmoid() # implies r_hat used instead of 1+r_hat in lossDfake
             # !!! if changing to Tanh, change lossDfake also
             )
+        
         self.seq_fc.apply(init_weights)
         self.seq_lstm_1.apply(init_weights)
         self.seq_lstm_2.apply(init_weights)
@@ -127,12 +138,11 @@ class Discriminator_RealFakeSeq(nn.Module):
     def forward(self, kp_seq): # B, T, F
         
         kp_seq = kp_seq.permute(1,0,2) # T, B, F
-        
         kp_seq, _ = self.seq_lstm_1(kp_seq)
         kp_seq, _ = self.seq_lstm_2(kp_seq)
+        
         kp_seq = kp_seq.permute(1,0,2)
         kp_seq = kp_seq.reshape(-1, 30*16)
-                
         lab_realfake = self.seq_fc(kp_seq) # check if sigmoid is there in criterion
         
         return lab_realfake
@@ -140,7 +150,7 @@ class Discriminator_RealFakeSeq(nn.Module):
     @property
     def is_cuda(self):
         return next(self.parameters()).is_cuda
-    
+
 
 class CrossEmbed(nn.Module):
     
@@ -148,23 +158,30 @@ class CrossEmbed(nn.Module):
         super(CrossEmbed,self).__init__()
         
         self.cross_lstm_1 = nn.LSTM(136,32,bidirectional=True)
-        self.cross_lstm_2 = nn.LSTM(32*2,16,bidirectional=True)
-        self.cross_lstm_3 = nn.LSTM(16*2,8,bidirectional=True)
+        self.cross_lstm_2 = nn.LSTM(32*2,8,bidirectional=True)
         
         self.cross_fc = nn.Sequential(
-            nn.Linear(30*16, 64),
-            nn.BatchNorm1d(64),
+            nn.Linear(30*16, 128),
+            nn.BatchNorm1d(128),
             nn.ReLU(inplace=True),
-            nn.Linear(64, 7)
-            )
+            nn.Linear(128, 32),
+            nn.BatchNorm1d(32),
+            nn.ReLU(inplace=True),
+            nn.Linear(32, 7)
+            ) # softmax not required since included in losses
+        
+        # self.cross_fc.apply(init_weights)
+        self.cross_lstm_1.apply(init_weights)
+        self.cross_lstm_2.apply(init_weights)
             
     def forward(self, kp_seq):
         
+        kp_seq = kp_seq.permute(1,0,2) # T, B, F
+        
         kp_seq, _ = self.cross_lstm_1(kp_seq)
         kp_seq, _ = self.cross_lstm_2(kp_seq)
-        kp_seq, _ = self.cross_lstm_3(kp_seq)
         
-        kp_seq = kp_seq.permute(1,2,0)
+        kp_seq = kp_seq.permute(1,0,2)
         kp_seq = kp_seq.reshape(-1, 30*16)
         lab_emo = self.cross_fc(kp_seq)
         
@@ -173,7 +190,7 @@ class CrossEmbed(nn.Module):
     @property
     def is_cuda(self):
         return next(self.parameters()).is_cuda
-
+ 
     
 class LossDSCreal(nn.Module):
     def __init__(self):
@@ -190,6 +207,37 @@ class LossDSCfake(nn.Module):
     def forward(self, rhat):
         loss = self.relu(rhat) # !!! 1.0+r_hat not used since D last layer is Sigmoid
         return loss.mean()
+
+class LossGrealfake(nn.Module):
+    def __init__(self):
+        super(LossGrealfake, self).__init__()
+    def forward(self, lab):
+        loss = 1 - lab.mean()
+        return loss
+
+
+class LossCE(nn.Module):
+    def __init__(self):
+        super(LossCE, self).__init__()
+        self.crit = nn.L1Loss()        
+    def forward(self, pred, gt):
+        pred = nn.functional.softmax(pred,dim=1)
+        gt = nn.functional.softmax(gt,dim=1)
+        loss = self.crit(pred,gt)
+        return loss
+    
+class emo_cossim(nn.Module):
+    def __init__(self, device):
+        super(emo_cossim, self).__init__()
+        self.crit = nn.CosineEmbeddingLoss()  
+        self.device = device
+    def forward(self, pred, gt):
+        pred = nn.functional.softmax(pred,dim=1)
+        gt = nn.functional.softmax(gt,dim=1)
+        lab = torch.ones(gt.shape[0],1).to(self.device)
+        loss = self.crit(pred,gt,lab)
+        return loss
+
 
 class lip_cossim(nn.Module):
     def __init__(self, device):

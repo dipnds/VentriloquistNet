@@ -39,7 +39,7 @@ class Net(nn.Module):
             nn.BatchNorm1d(64),
             nn.ReLU(inplace=True),
             nn.Linear(64, 7)
-            )
+            ) # softmax not required since included in CrossEntropyLoss
     
     def forward(self, mel):
         
