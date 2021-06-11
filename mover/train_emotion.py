@@ -6,7 +6,7 @@ import torch.nn as nn
 import os, tqdm
 import numpy as np
 
-from dataprep_emotion import prep
+from dataprep_emotion_cross import prep
 import networks.emo_classifier_seq as network
 
 batch_size = 16
@@ -34,6 +34,7 @@ def train(model, epoch):
     
     for batch, (ip, target) in tr_batch:
         ip = ip.to(device); target = target.to(device)
+        print(ip.shape)
 
         optimizer.zero_grad()
         pred,_ = model(ip)
@@ -93,4 +94,4 @@ scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
 bestEv_loss = None; bestTr_loss = None
 for epoch in range(epochs):
     train(model,epoch)
-    bestEv_loss = eval(model,epoch,bestEv_loss,scheduler)        
+    #bestEv_loss = eval(model,epoch,bestEv_loss,scheduler)        

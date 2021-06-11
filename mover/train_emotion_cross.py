@@ -9,7 +9,7 @@ import numpy as np
 from dataprep_emotion_cross import prep
 from networks.emo_classifier_kp import CrossEmbed
 
-batch_size = 8
+batch_size = 32
 epochs = 100
 log_nth = 10; plot_nth = 500
 
@@ -68,7 +68,7 @@ def train(CE, prTr_emo_model, epoch): # D_ls
             
     # torch.save(CE, modelpath+'bestpreTr_CE.model')
     
-def eval(CE, prTr_emo_model, epoch): # D_ls
+def eval(CE, prTr_emo_model, epoch, schedulerEmo, schedulerCE): # D_ls
     
     CE.eval(); prTr_emo_model.eval()
     true_loss = []; true_acc = []; cross_loss = []; cross_acc = []
@@ -79,24 +79,17 @@ def eval(CE, prTr_emo_model, epoch): # D_ls
         target_kp = target_kp.to(device)
         target = target.to(device)
         
-        opEmo.zero_grad()
         lab_emo, _ = prTr_emo_model(mfcc)
         lossEmo = cr_emo(lab_emo,target)
-        lossEmo.backward()
-        opEmo.step()
         
         pred = torch.argmax(lab_emo.detach(),dim=1)
         acc = (pred == target.detach()).sum().cpu().numpy() / target.shape[0]
         true_loss.append(lossEmo.detach().item())
         true_acc.append(acc)
         
-        opCE.zero_grad()
-        lab_emo.requires_grad_() # .detach_()
         emo_real = CE(target_kp)
         lab = torch.ones(target_kp.shape[0],1).to(device)
         lossCE = cr_cross(emo_real,lab_emo,lab)
-        lossCE.backward()
-        opCE.step()
         
         pred = torch.argmax(emo_real.detach(),dim=1)
         acc = (pred == target.detach()).sum().cpu().numpy() / target.shape[0]
@@ -104,9 +97,12 @@ def eval(CE, prTr_emo_model, epoch): # D_ls
         cross_acc.append(acc)
         
         if (batch+1)%log_nth == 0:
-            ev_batch.set_description(f'Tr:{epoch+1}, TL:{np.mean(true_loss):.2E}, '+
+            ev_batch.set_description(f'Ev:{epoch+1}, TL:{np.mean(true_loss):.2E}, '+
                                      f'TA:{np.mean(true_acc):.2E}, CL:{np.mean(cross_loss):.2E}, '
                                      + f'CA:{np.mean(cross_acc):.2E}')
+
+        schedulerCE.step()
+        schedulerEmo.step()
             
         
 CE = CrossEmbed().to(device)
@@ -116,7 +112,9 @@ cr_cross = nn.CosineEmbeddingLoss()
 cr_emo = nn.CrossEntropyLoss()
 opCE = optim.Adam(CE.parameters(), lr=1e-4, betas=(0.9,0.999), eps=1e-8)
 opEmo = optim.Adam(prTr_emo_model.parameters(), lr=1e-4, betas=(0.9,0.999), eps=1e-8)
+schedulerCE = optim.lr_scheduler.StepLR(opEmo, step_size=50, gamma=0.1)
+schedulerEmo = optim.lr_scheduler.StepLR(opCE, step_size=30, gamma=0.1)
 
 for epoch in range(epochs):
     train(CE,prTr_emo_model,epoch)
-    eval(CE,prTr_emo_model,epoch)#,scheduler)
+    #eval(CE,prTr_emo_model,epoch,schedulerEmo,schedulerCE)
