@@ -11,7 +11,7 @@ class prep(Dataset):
     def __init__(self, path, split):
         
         # mfcc = pkl.load(open('/media/deepan/Backup/thesis/'+'emo_data.pkl','rb'))['feat_train']
-        mfcc = pkl.load(open('/storage/user/dasd/'+'emo_data.pkl','rb'))['feat_train']
+        mfcc = pkl.load(open('/usr/stud/dasd/workspace/'+'emo_data.pkl','rb'))['feat_train']
         self.mfcc_mean = np.mean(mfcc, axis=(0,2))
         self.mfcc_mean = torch.tensor(self.mfcc_mean).float().unsqueeze(-1)
         self.mfcc_std = np.std(mfcc, axis=(0,2))
@@ -41,7 +41,7 @@ class prep(Dataset):
             pkl.dump(datalist,open('../datalist_mead_'+split+'.pkl','wb'))
 
         else: self.datalist = pkl.load(open('../datalist_mead_'+split+'.pkl','rb'))
-        self.map = {'angry':0, 'disgusted':1, 'contempt':1, 'fear':2, 'happy':3, 'neutral':4, 'sad':5, 'surprised':6}
+        self.map = {'angry':0, 'contempt':1, 'disgusted':2, 'fear':3, 'happy':4, 'neutral':5, 'sad':6, 'surprised':7}
         
         
     def __len__(self):
@@ -70,7 +70,15 @@ class prep(Dataset):
         mfcc = mfcc[:,mfcc_start:mfcc_start+fps*3+2,:]
         mfcc = (mfcc - self.mfcc_mean) / self.mfcc_std
         mfcc = mfcc.permute((2,0,1))
-         
+        
+        # snip = path.split('/')[-4]
+        # if snip != 'contempt':
+        #     gt = self.map[snip]
+        # else:
+        #     if path.split('/')[-3] != 'level_3':
+        #         gt = 4
+        #     else:
+        #         gt = 1
         gt = self.map[path.split('/')[-4]]
         
         if kp_seq.shape[0] < fps: kp_seq = F.pad(kp_seq,(0,0,0,fps-kp_seq.shape[0]))

@@ -11,11 +11,17 @@ class prep(Dataset):
     def __init__(self, path, split):
         
         # mfcc = pkl.load(open('/media/deepan/Backup/thesis/'+'emo_data.pkl','rb'))['feat_train']
-        mfcc = pkl.load(open('/storage/user/dasd/'+'emo_data.pkl','rb'))['feat_train']
+        mfcc = pkl.load(open('/usr/stud/dasd/workspace/'+'emo_data.pkl','rb'))['feat_train']
         self.mfcc_mean = np.mean(mfcc, axis=(0,2))
         self.mfcc_mean = torch.tensor(self.mfcc_mean).float().unsqueeze(-1)
         self.mfcc_std = np.std(mfcc, axis=(0,2))
         self.mfcc_std = torch.tensor(self.mfcc_std).float().unsqueeze(-1)
+        
+        mel = torch.load('mel_norm.pt',map_location=(torch.device('cpu')))
+        self.mel_mean = mel['m']
+        self.mel_mean = self.mel_mean.unsqueeze(0).unsqueeze(-1)
+        self.mel_std = mel['s']
+        self.mel_std = self.mel_std.unsqueeze(0).unsqueeze(-1)
         
         self.kp_init = torch.load('kp_general.pt').flatten().unsqueeze(0)
         
@@ -74,6 +80,7 @@ class prep(Dataset):
         
         mel = mel[:,mel_start:mel_start+fps*3+2]
         mel = mel.permute((2,0,1))
+        mel = (mel - self.mel_mean) / self.mel_std
         
         # negative example of kp for D_lipsync training
         L = list(np.arange(0,len(self.datalist)))
@@ -89,7 +96,7 @@ class prep(Dataset):
         neg_kp_seq -= self.kp_init
         
         if kp_seq.shape[0] < fps: kp_seq = F.pad(kp_seq,(0,0,0,fps-kp_seq.shape[0]))
-        if neg_kp_seq.shape[0] < 30: neg_kp_seq = F.pad(neg_kp_seq,(0,0,0,fps-neg_kp_seq.shape[0]))
+        if neg_kp_seq.shape[0] < fps: neg_kp_seq = F.pad(neg_kp_seq,(0,0,0,fps-neg_kp_seq.shape[0]))
                 
         if mel.shape[2] < fps*3+2: mel = F.pad(mel,(0,fps*3+2-mel.shape[2],0,0,0,0))
         if mfcc.shape[2] < fps*3+2: mfcc = F.pad(mfcc,(0,fps*3+2-mfcc.shape[2],0,0,0,0))

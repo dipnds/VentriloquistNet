@@ -60,23 +60,34 @@ def kp2sketch(kp,h,w):
     sketch = sketch.type(torch.bool)
     return sketch
 
-person = 'M042' # 'W014', 'M011', 'M042', 'W015', 'W024'
-emo_list = ['happy/level_3/']#, 'neutral/level_1/', 'angry/level_3/', 'happy/level_2/']
+# M013 angry 028; M031 happy 010; M034 neutral 038; W036 sad 029; W029 disgusted 033; W036 surprised 029
+# M003 neutral 017; angry 026; happy 028; sad 007; disgusted 015; surprised 026
+
+person = 'M003/' 
+emotion = 'angry/'
+level = 'level_3/'
+utterance = '026'
 
 # device = torch.device('cpu')
 device = torch.device('cuda:0')
 
 modelpath = 'models/'#'G1iterD1iter/'
 #datapath = '/media/deepan/Backup/thesis/mead/processed/'
-datapath = '/storage/user/dasd/mead/processed/'
-datapath = datapath + person + '/'
-file_list = [datapath + emo + '001/' for emo in emo_list]
+datapath = '/usr/stud/dasd/workspace/mead/processed/'
+file_list = [datapath + person + emotion + level + utterance]
 
-mfcc = pkl.load(open('/storage/user/dasd/'+'emo_data.pkl','rb'))['feat_train']
+mfcc = pkl.load(open('/usr/stud/dasd/workspace/'+'emo_data.pkl','rb'))['feat_train']
 mfcc_mean = np.mean(mfcc, axis=(0,2))
 mfcc_mean = torch.tensor(mfcc_mean).float().unsqueeze(-1)
 mfcc_std = np.std(mfcc, axis=(0,2))
 mfcc_std = torch.tensor(mfcc_std).float().unsqueeze(-1)
+
+mel = torch.load('mel_norm.pt',map_location=(torch.device('cpu')))
+mel_mean = mel['m']
+mel_mean = mel_mean.unsqueeze(0).unsqueeze(-1)
+mel_std = mel['s']
+mel_std = mel_std.unsqueeze(0).unsqueeze(-1)
+
 kp_init = torch.load('kp_general.pt').flatten().unsqueeze(0).to(device)
 
 def infer(G, prTr_emo_model, mel, mfcc):
@@ -89,29 +100,30 @@ def infer(G, prTr_emo_model, mel, mfcc):
         return pred_kp
 
 G = torch.load(modelpath+'bestTr_G.model',map_location=device)
-prTr_emo_model = torch.load('models/bestEv_emo_classifier_seq.model',map_location=device)
+prTr_emo_model = torch.load('models/bestReTr_emo_classifier_seq.model',map_location=device)
 
 for file in file_list:
     
-    duration = 2; offset = 1
+    duration = 4; offset = 0
     
-    mel = torch.load(file + 'mel.pt')[:,offset*3:92*duration+offset*3,:]
+    mel = torch.load(file + '/mel.pt')[:,offset*3:92*duration+offset*3,:]
     mel = mel.permute((2,0,1)) # C,F,T
-    mel = torch.stack((mel[:,:,:92],mel[:,:,92:]))
+    mel = (mel - mel_mean) / mel_std
+    mel = torch.stack((mel[:,:,0:92],mel[:,:,92:184],mel[:,:,184:276],mel[:,:,276:368]))
     
-    mfcc = torch.load(file + 'mfcc.pt')[:,offset*3:92*duration+offset*3,:]
+    mfcc = torch.load(file + '/mfcc.pt')[:,offset*3:92*duration+offset*3,:]
     mfcc = (mfcc - mfcc_mean) / mfcc_std
     mfcc = mfcc.permute((2,0,1))
-    mfcc = torch.stack((mfcc[:,:,:92],mfcc[:,:,92:]))
+    mfcc = torch.stack((mfcc[:,:,0:92],mfcc[:,:,92:184],mfcc[:,:,184:276],mfcc[:,:,276:368]))
     
-    gt = torch.load(file + 'kp_seq.pt')[offset:30*duration+offset].float()
+    gt = torch.load(file + '/kp_seq.pt')[offset:30*duration+offset].float()
     m = gt.mean(dim=(0,1),keepdims=True)
     s = gt.std(dim=(0,1),keepdims=True)
     
     pred = infer(G,prTr_emo_model,mel.float(),mfcc.float()) # B, T, F
     if isinstance(pred, tuple):
         pred = pred[0] + pred[1]
-    pred = torch.cat((pred[0,:,:],pred[1,:,:]),dim=0)
+    pred = torch.cat((pred[0,:,:],pred[1,:,:],pred[2,:,:],pred[3,:,:]),dim=0)
 
     print(pred.abs().mean(dim=1))
     temp = ((gt - m) / s).flatten(start_dim=1) - kp_init.to(torch.device('cpu'))
@@ -128,29 +140,50 @@ for file in file_list:
 
     print(pred.abs().mean(dim=(1,2)))
     print(gt.abs().mean(dim=(1,2)))
-    torch.save(pred,'pred_kp.pt')
-        
-    l_min = gt.min(dim=0,keepdim=True).values.min(dim=1,keepdim=True).values - 100
-    l_max = gt.max(dim=0,keepdim=True).values.max(dim=1,keepdim=True).values + 100
-    gt = (gt - l_min).round().numpy().astype(int); pred = (pred - l_min).round().numpy().astype(int)
+    torch.save(pred,'results/pred_kp.pt')
+     
+    # pred = torch.load('results/pred_kp.pt')
+    
+    pred_m = pred.mean(dim=1,keepdim=True)
+    pred_s = pred.std(dim=1,keepdim=True)
+    pred = (pred - pred_m) / pred_s
+    pred = pred.flatten(start_dim=1)
+    turn = torch.tensor([2/3,0])
+    
+    ip = []
+    for i in range(pred.shape[0]):
+        temp = torch.cat((pred[i],turn))
+        ip.append(temp)
+    ip = torch.stack(ip).to(device)
+    
+    turner = torch.load('models/bestEv_turner.model')
+    turned_pred = turner(ip)
+    
+    turned_pred = (turned_pred.detach().cpu().reshape(-1,68,2) * pred_s) + pred_m
+    print(turned_pred)
+    torch.save(turned_pred,'results/turned_kp.pt')
+    
+    # l_min = gt.min(dim=0,keepdim=True).values.min(dim=1,keepdim=True).values - 100
+    # l_max = gt.max(dim=0,keepdim=True).values.max(dim=1,keepdim=True).values + 100
+    # gt = (gt - l_min).round().numpy().astype(int); pred = (pred - l_min).round().numpy().astype(int)
     
         
-    w,h = int((l_max-l_min)[0,0,0]), int((l_max-l_min)[0,0,1])
+    # w,h = int((l_max-l_min)[0,0,0]), int((l_max-l_min)[0,0,1])
     
-    for i in range(gt.shape[0]):
+    # for i in range(gt.shape[0]):
         
-        print(i)
-        # plt.figure()
-        # plt.scatter(gt[i,:,0],-gt[i,:,1],c='b',s=2)
-        # plt.scatter(pred[0,:,0],-pred[0,:,1],c='r',s=2)
+    #     print(i)
+    #     # plt.figure()
+    #     # plt.scatter(gt[i,:,0],-gt[i,:,1],c='b',s=2)
+    #     # plt.scatter(pred[0,:,0],-pred[0,:,1],c='r',s=2)
         
-        gt_sketch = (kp2sketch(gt[i,:,:],h,w)).type(torch.uint8) * 255
-        pred_sketch = (kp2sketch(pred[i,:,:],h,w)).type(torch.uint8) * 255
-        dummy = torch.ones_like(gt_sketch) - gt_sketch - pred_sketch
-        dummy = dummy.type(torch.uint8) * 255
-        gt_sketch = 255 - gt_sketch; pred_sketch = 255 - pred_sketch
-        full = torch.stack((pred_sketch,gt_sketch,dummy),dim=-1)
-        plt.imshow(full)
+    #     gt_sketch = (kp2sketch(gt[i,:,:],h,w)).type(torch.uint8) * 255
+    #     pred_sketch = (kp2sketch(pred[i,:,:],h,w)).type(torch.uint8) * 255
+    #     dummy = torch.ones_like(gt_sketch) - gt_sketch - pred_sketch
+    #     dummy = dummy.type(torch.uint8) * 255
+    #     gt_sketch = 255 - gt_sketch; pred_sketch = 255 - pred_sketch
+    #     full = torch.stack((pred_sketch,gt_sketch,dummy),dim=-1)
+    #     plt.imshow(full)
         
-        plt.savefig('results/'+str(i)+'.png')
-        plt.close()
+    #     plt.savefig('results/'+str(i)+'.png')
+    #     plt.close()

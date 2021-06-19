@@ -12,7 +12,7 @@ def init_weights(m):
     #     nn.init.xavier_normal_(m.weight, gain=nn.init.calculate_gain('tanh')*0.2)
     #     nn.init.constant_(m.bias, -0.1) # cancelled by batchnorm
     if isinstance(m, nn.Conv1d):
-        nn.init.xavier_normal_(m.weight, gain=nn.init.calculate_gain('leaky_relu',0.1)*0.01)
+        nn.init.xavier_normal_(m.weight, gain=nn.init.calculate_gain('leaky_relu',0.1)*0.05)
         # nn.init.constant_(m.weight_hh_l0, gain=nn.init.calculate_gain('tanh'))
 
 
@@ -72,9 +72,6 @@ class Generator(nn.Module):
         #     nn.Tanh()
         #     )
         
-        # self.lip_conv.apply(init_weights)
-        # self.emo_conv.apply(init_weights)
-        
         self.combo_conv = nn.Sequential(
             nn.Conv1d(512*5+128, 512, 3, padding=1), # 512, 30
             nn.BatchNorm1d(512),
@@ -88,6 +85,10 @@ class Generator(nn.Module):
             nn.Conv1d(136*2, 136, 5, padding=2), # 136, 30
             nn.Tanh()
             )
+        
+        # self.lip_conv.apply(init_weights)
+        # self.emo_conv.apply(init_weights)
+        self.combo_conv.apply(init_weights)
         
     def forward(self, mel, feat_emo):
         
@@ -103,6 +104,8 @@ class Generator(nn.Module):
         combo_kp = torch.cat((mel,feat_emo),dim=1) # B, F, T
         combo_kp = self.combo_conv(combo_kp)
         combo_kp = combo_kp.permute(0,2,1) # B, T, F
+        
+        # print('check')
         
         return combo_kp # lip_kp, emo_kp
     
@@ -176,16 +179,6 @@ class LossGrealfake(nn.Module):
         return loss
 
 
-class LossCE(nn.Module):
-    def __init__(self):
-        super(LossCE, self).__init__()
-        self.crit = nn.L1Loss()        
-    def forward(self, pred, gt):
-        pred = nn.functional.softmax(pred,dim=1)
-        gt = nn.functional.softmax(gt,dim=1)
-        loss = self.crit(pred,gt)
-        return loss
-    
 class emo_cossim(nn.Module):
     def __init__(self, device):
         super(emo_cossim, self).__init__()
@@ -198,6 +191,23 @@ class emo_cossim(nn.Module):
         loss = self.crit(pred,gt,lab)
         return loss
 
+# class emo_cossim(nn.Module):
+#     def __init__(self, device, prTr_CE):
+#         super(emo_cossim, self).__init__()
+#         self.crit = nn.CosineEmbeddingLoss()  
+#         self.device = device
+#         self.prTr_CE = prTr_CE
+#         self.prTr_CE.eval()
+#     def forward(self, pred_kp, lab_emo):
+        
+#         pred_emo = self.prTr_CE(pred_kp)
+#         pred_emo = nn.functional.softmax(pred_emo,dim=1)
+        
+#         lab_emo = nn.functional.softmax(lab_emo,dim=1)
+#         lab = torch.ones(lab_emo.shape[0],1).to(self.device)
+#         loss = self.crit(pred_emo,lab_emo,lab)
+        
+#         return loss
 
 class lip_cossim(nn.Module):
     def __init__(self, device):
@@ -209,38 +219,32 @@ class lip_cossim(nn.Module):
         self.wt_mouth.requires_grad = False
         self.wt_mouth = self.wt_mouth.to(device)
         
-        # self.wt_rest = torch.ones(136)
-        # self.wt_rest[-40:] = 0; self.wt_rest[:34] = 0 # lips and jaw only
-        # self.wt_rest = torch.diag(self.wt_rest)
-        # self.wt_rest.requires_grad = False
-        # self.wt_rest = self.wt_rest.to(device)
-        
-        # self.crit_Lnorm = nn.L1Loss()
-        self.crit_Lnorm = nn.MSELoss()
-        self.crit_cossim = nn.CosineEmbeddingLoss(margin=0.0)
+        self.crit_lower = nn.L1Loss()
+        # self.crit_lower = nn.MSELoss()
+        # self.crit_lower = nn.CosineEmbeddingLoss(margin=0.0)
+        self.crit_energy = nn.MSELoss()
         self.device = device
     
     def forward(self, pred_kp, target_kp):
         
-        # !!! remove time varying mean first
-                
+        # remove temporal variation, keep shape variation
         pred_mouth = torch.matmul(pred_kp,self.wt_mouth)
+        pred_mouth = pred_mouth.reshape((-1,30,68,2))
+        pred_mouth = pred_mouth - (pred_mouth.sum(dim=2,keepdim=True))/37
+        pred_mouth = pred_mouth.reshape((-1,30,136))
         target_mouth = torch.matmul(target_kp,self.wt_mouth)
-        lab = - torch.ones(target_kp.shape[0],1).to(self.device)
-        loss_cossim = self.crit_cossim(pred_mouth,target_mouth,lab)
+        target_mouth = target_mouth.reshape((-1,30,68,2))
+        target_mouth = target_mouth - (target_mouth.sum(dim=2,keepdim=True))/37
+        target_mouth = target_mouth.reshape((-1,30,136))
+        # lab = - torch.ones(target_kp.shape[0],1).to(self.device)
+        loss_lower = self.crit_lower(pred_mouth,target_mouth)#,lab)
         
-        pred_kp = pred_kp.reshape((-1,30,68,2))
-        pred_kp = pred_kp - pred_kp.mean(dim=2,keepdim=True)
-        pred_kp = pred_kp.reshape((-1,30,136))
-        target_kp = target_kp.reshape((-1,30,68,2))
-        target_kp = target_kp - target_kp.mean(dim=2,keepdim=True)
-        target_kp = target_kp.reshape((-1,30,136))
-        
-        # pred_rest = torch.matmul(pred_kp,self.wt_rest)
-        # target_rest = torch.matmul(target_kp,self.wt_rest)
-        # dist = (pred_rest - target_rest).mean(dim=-1,keepdim=True)
-        # pred_kp = pred_kp - dist
-        loss_Lnorm = self.crit_Lnorm(pred_kp,target_kp)
+        # keep temporal variation, remove shape variation
+        pred_kp = pred_kp - pred_kp.mean(dim=1,keepdim=True)
+        pred_kp = pred_kp.pow(2).mean(dim=1)
+        target_kp = target_kp - target_kp.mean(dim=1,keepdim=True)
+        target_kp = target_kp.pow(2).mean(dim=1)
+        loss_rest = self.crit_energy(pred_kp,target_kp)
                 
-        return loss_Lnorm, loss_cossim
+        return loss_rest, loss_lower
     

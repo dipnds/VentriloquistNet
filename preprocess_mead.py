@@ -103,7 +103,7 @@ id_list = {'dev':os.listdir(path_in)}; id_list['dev'].sort()
 # train eval split
 file_list = id_list['dev']
 if not os.path.isfile('split_mead.pkl'):
-    np.random.seed(0)
+    np.random.seed(100)
     idx = np.random.choice(len(id_list['dev']),6,replace=False)
     id_list['eval'] = [id_list['dev'][i] for i in idx]
     id_list['train'] = list(set(id_list['dev']) - set(id_list['eval']))

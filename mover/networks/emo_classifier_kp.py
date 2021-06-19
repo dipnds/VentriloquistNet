@@ -16,7 +16,7 @@ class CrossEmbed(nn.Module):
             nn.Linear(128, 32),
             nn.BatchNorm1d(32),
             nn.ReLU(inplace=True),
-            nn.Linear(32, 7)
+            nn.Linear(32, 8)
             ) # softmax not required since included in losses
             
     def forward(self, kp_seq):
