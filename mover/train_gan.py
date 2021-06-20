@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from dataprep_gan import prep
-from networks.gan_cnn_emo_2 import (Generator, Discriminator_RealFakeSeq,
+from networks.gan_cnn_emo_3 import (Generator, Discriminator_RealFakeSeq,
                         LossGrealfake, LossDSCreal, LossDSCfake,
                         lip_cossim, emo_cossim)
 
@@ -29,7 +29,7 @@ tr_loader = DataLoader(tr_set,batch_size=batch_size,shuffle=True,num_workers=6)
 
 # writer = SummaryWriter() # comment=name
 
-def train(G, D_rf, prTr_emo_model, epoch): #, prTr_CE, D_ls
+def train(G, D_rf, prTr_emo_model, prTr_CE, epoch): # D_ls
     
     G.train(); D_rf.train(); prTr_emo_model.eval(); prTr_CE.train()#; D_ls.train()
     G_loss = []; D_loss = []
@@ -46,22 +46,23 @@ def train(G, D_rf, prTr_emo_model, epoch): #, prTr_CE, D_ls
         ## REAL 1, FAKE 0
         
         opG.zero_grad()
-        pred_kp = G(mel,feat_emo)
+        # pred_kp = G(mel,feat_emo)
+        pred_kp = G(mfcc,feat_emo)
 
         # if (epoch)%2 == 0: wt_dist = 0.9
         # else : wt_dist = 0.5
-        wt_dist = 1
+        wt_dist = 1; wt_real = 1; wt_emo = 0.5
         lab_rf = D_rf(pred_kp)
         lossG_rf = crG_rf(lab_rf)
         lossG_rest, lossG_lower = cr_lipDist(pred_kp,target_kp)
         # lossG_dist = 50*(epoch+1)*lossG_lower + 5*(epoch+1)*lossG_rest # it was 100 and 10
-        lossG_dist = 20*lossG_lower + 20*lossG_rest
+        lossG_dist = 2*lossG_lower + 1*lossG_rest
         
         emo_fake = prTr_CE(pred_kp)
         lossG_ce = cr_emo(emo_fake,lab_emo)
         # lossG_ce = cr_emo(pred_kp,lab_emo)
         
-        loss_G = wt_dist*lossG_dist + ((2-wt_dist)/2)*lossG_rf + ((2-wt_dist)/2)*lossG_ce
+        loss_G = wt_dist*lossG_dist + wt_real*lossG_rf + wt_emo*lossG_ce
         loss_G.backward()
         opG.step()
                 
@@ -112,10 +113,10 @@ crDreal = LossDSCreal(); crDfake = LossDSCfake()
 cr_emo = emo_cossim(device)#,prTr_CE)
 
 opG = optim.Adam(G.parameters(), lr=1e-4, betas=(0.9,0.999), eps=1e-8) # lstm 1e-4
-opD_rf = optim.Adam(D_rf.parameters(), lr=4e-5, betas=(0.9,0.999), eps=1e-8) # lstm 4e-5
+opD_rf = optim.Adam(D_rf.parameters(), lr=6e-5, betas=(0.9,0.999), eps=1e-8) # lstm 4e-5
 
 for epoch in range(epochs):
-    train(G,D_rf,prTr_emo_model,epoch) # ,prTr_CE,D_ls
+    train(G,D_rf,prTr_emo_model,prTr_CE,epoch) # D_ls
     # eval(G,D_rf,prTr_CE,prTr_emo_model,epoch)#,scheduler)
 
 # TODO : lr scheduler, based on losses of G and D

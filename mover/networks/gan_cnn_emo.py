@@ -12,7 +12,7 @@ def init_weights(m):
     #     nn.init.xavier_normal_(m.weight, gain=nn.init.calculate_gain('tanh')*0.2)
     #     nn.init.constant_(m.bias, -0.1) # cancelled by batchnorm
     if isinstance(m, nn.Conv1d):
-        nn.init.xavier_normal_(m.weight, gain=nn.init.calculate_gain('leaky_relu',0.1)*0.01)
+        nn.init.xavier_normal_(m.weight, gain=nn.init.calculate_gain('leaky_relu',0.1)*0.05)
         # nn.init.constant_(m.weight_hh_l0, gain=nn.init.calculate_gain('tanh'))
 
 

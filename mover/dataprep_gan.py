@@ -61,9 +61,10 @@ class prep(Dataset):
         mfcc = torch.load(path + 'mfcc.pt')
         kp_seq = torch.load(path + 'kp_seq.pt')
                 
-        temp = kp_seq.shape[0]-fps-1
-        if temp < 2: kp_start = 0
-        else: kp_start = np.random.randint(1,temp)
+        # temp = kp_seq.shape[0]-fps-1
+        # if temp < 2: kp_start = 0
+        # else: kp_start = np.random.randint(1,temp)
+        kp_start = 0
         mfcc_start = int(kp_start * (mfcc.shape[1] / kp_seq.shape[0]))
         mel_start = int(kp_start * (mel.shape[1] / kp_seq.shape[0]))
                 
@@ -73,7 +74,7 @@ class prep(Dataset):
         kp_seq = (kp_seq - m) / s
         kp_seq = kp_seq.flatten(start_dim=1)
         kp_seq -= self.kp_init
-        
+                
         mfcc = mfcc[:,mfcc_start:mfcc_start+fps*3+2,:]
         mfcc = (mfcc - self.mfcc_mean) / self.mfcc_std
         mfcc = mfcc.permute((2,0,1))

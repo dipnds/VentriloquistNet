@@ -7,8 +7,11 @@ from scipy.optimize import curve_fit
 import warnings
 import tqdm
 import pickle as pkl
+import librosa
 
 import face_alignment
+import audio
+import time
 
 path_root = '/storage/user/dasd/vox2/dev/'
 path_in = path_root+'mp4/'
@@ -68,7 +71,7 @@ def kp2sketch(kp,h,w):
     sketch = sketch.type(torch.bool)
     return sketch
     
-def processing_loop(person_list, path_in, path_out, fa):
+def video_processing_loop(person_list, path_in, path_out, fa):
     
     person_list = tqdm.tqdm(person_list,total=len(person_list))
     
@@ -109,6 +112,38 @@ def processing_loop(person_list, path_in, path_out, fa):
                         print(person+'/'+vid)
                         
     return 0
+
+def audio_processing_loop(person_list, path_in, path_out):
+    
+    person_list = tqdm.tqdm(person_list,total=len(person_list))
+    
+    for person in person_list:
+        person_list.set_description(person)
+        if os.path.isdir(path_in+person):
+            vid_list = os.listdir(path_in+person)
+            for vid in vid_list:
+                utter_list = os.listdir(path_in+person+'/'+vid)
+                # limit to 1
+                lim = 1
+                if len(utter_list) > lim: utter_list = utter_list[:lim]
+                
+                for utter in utter_list:
+                    
+                    try:
+                        (_,speech,fps) = read_video(path_in+person+'/'+vid+'/'+utter)
+                        speech = speech[0]
+                        if fps['audio_fps'] != 16000:
+                            speech = librosa.resample(speech.numpy(),fps['audio_fps'],16000)
+                        speech = speech[0:16000]
+                        mel = audio.melspectrogram(speech)
+                        
+                        if not os.path.isdir(path_out+person+'/'+vid+'/'):
+                            os.makedirs(path_out+person+'/'+vid+'/')    
+                        torch.save(mel,path_out+person+'/'+vid+'/'+'mel_'+utter[:-4]+'.pt')
+                    except:
+                        print(person+'/'+vid)
+                        
+    return 0
                     
 # make a list of person IDs in the target subset
 with open('vox2_meta.csv') as meta:
@@ -129,11 +164,13 @@ if not os.path.isfile('split_vox2.pkl'):
     pkl.dump(id_list,open('split_vox2.pkl','wb'))
 
 # init face alignment
-fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D,flip_input=False,
-                                  device='cuda',face_detector='blazeface') # default 'sfd'
+# fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D,flip_input=False,
+                                  # device='cuda',face_detector='blazeface') # default 'sfd'
 
 # loop over subsets
-a = 5400; b = 6000
+print(len(file_list))
+a = 5400; b = 5994
 print(a,b)
-processing_loop(file_list[a:b], path_in, path_out, fa)
-# processing_loop(id_list['test'], path_in, path_out, fa)
+# video_processing_loop(file_list[a:b], path_in, path_out, fa)
+# video_processing_loop(id_list['test'], path_in, path_out, fa)
+audio_processing_loop(file_list[a:], path_in, path_out)

@@ -64,9 +64,9 @@ def kp2sketch(kp,h,w):
 # M003 neutral 017; angry 026; happy 028; sad 007; disgusted 015; surprised 026
 
 person = 'M003/' 
-emotion = 'angry/'
+emotion = 'happy/'
 level = 'level_3/'
-utterance = '026'
+utterance = '028'
 
 # device = torch.device('cpu')
 device = torch.device('cuda:0')
@@ -96,10 +96,11 @@ def infer(G, prTr_emo_model, mel, mfcc):
     with torch.no_grad():
         mfcc = mfcc.to(device); mel = mel.to(device)
         lab_emo, feat_emo = prTr_emo_model(mfcc)
-        pred_kp = G(mel,feat_emo)
+        pred_kp = G(mfcc,feat_emo)
         return pred_kp
 
 G = torch.load(modelpath+'bestTr_G.model',map_location=device)
+# G = torch.load(modelpath+'20Tr_G.model',map_location=device)
 prTr_emo_model = torch.load('models/bestReTr_emo_classifier_seq.model',map_location=device)
 
 for file in file_list:
@@ -144,46 +145,43 @@ for file in file_list:
      
     # pred = torch.load('results/pred_kp.pt')
     
-    pred_m = pred.mean(dim=1,keepdim=True)
-    pred_s = pred.std(dim=1,keepdim=True)
-    pred = (pred - pred_m) / pred_s
-    pred = pred.flatten(start_dim=1)
-    turn = torch.tensor([2/3,0])
+    # pred_m = pred.mean(dim=1,keepdim=True)
+    # pred_s = pred.std(dim=1,keepdim=True)
+    # pred = (pred - pred_m) / pred_s
+    # pred = pred.flatten(start_dim=1)
+    # turn = torch.tensor([2/3,0])
     
-    ip = []
-    for i in range(pred.shape[0]):
-        temp = torch.cat((pred[i],turn))
-        ip.append(temp)
-    ip = torch.stack(ip).to(device)
+    # ip = []
+    # for i in range(pred.shape[0]):
+    #     temp = torch.cat((pred[i],turn))
+    #     ip.append(temp)
+    # ip = torch.stack(ip).to(device)
     
-    turner = torch.load('models/bestEv_turner.model')
-    turned_pred = turner(ip)
+    # turner = torch.load('models/bestEv_turner.model')
+    # turned_pred = turner(ip)
     
-    turned_pred = (turned_pred.detach().cpu().reshape(-1,68,2) * pred_s) + pred_m
-    print(turned_pred)
-    torch.save(turned_pred,'results/turned_kp.pt')
+    # turned_pred = (turned_pred.detach().cpu().reshape(-1,68,2) * pred_s) + pred_m
+    # print(turned_pred)
+    # torch.save(turned_pred,'results/turned_kp.pt')
     
-    # l_min = gt.min(dim=0,keepdim=True).values.min(dim=1,keepdim=True).values - 100
-    # l_max = gt.max(dim=0,keepdim=True).values.max(dim=1,keepdim=True).values + 100
-    # gt = (gt - l_min).round().numpy().astype(int); pred = (pred - l_min).round().numpy().astype(int)
+    l_min = gt.min(dim=0,keepdim=True).values.min(dim=1,keepdim=True).values - 100
+    l_max = gt.max(dim=0,keepdim=True).values.max(dim=1,keepdim=True).values + 100
+    gt = (gt - l_min).round().numpy().astype(int); pred = (pred - l_min).round().numpy().astype(int)
     
         
-    # w,h = int((l_max-l_min)[0,0,0]), int((l_max-l_min)[0,0,1])
+    w,h = int((l_max-l_min)[0,0,0]), int((l_max-l_min)[0,0,1])
     
-    # for i in range(gt.shape[0]):
+    for i in range(gt.shape[0]):
         
-    #     print(i)
-    #     # plt.figure()
-    #     # plt.scatter(gt[i,:,0],-gt[i,:,1],c='b',s=2)
-    #     # plt.scatter(pred[0,:,0],-pred[0,:,1],c='r',s=2)
+        print(i)
         
-    #     gt_sketch = (kp2sketch(gt[i,:,:],h,w)).type(torch.uint8) * 255
-    #     pred_sketch = (kp2sketch(pred[i,:,:],h,w)).type(torch.uint8) * 255
-    #     dummy = torch.ones_like(gt_sketch) - gt_sketch - pred_sketch
-    #     dummy = dummy.type(torch.uint8) * 255
-    #     gt_sketch = 255 - gt_sketch; pred_sketch = 255 - pred_sketch
-    #     full = torch.stack((pred_sketch,gt_sketch,dummy),dim=-1)
-    #     plt.imshow(full)
+        gt_sketch = (kp2sketch(gt[i,:,:],h,w)).type(torch.uint8) * 255
+        pred_sketch = (kp2sketch(pred[i,:,:],h,w)).type(torch.uint8) * 255
+        dummy = torch.ones_like(gt_sketch) - gt_sketch - pred_sketch
+        dummy = dummy.type(torch.uint8) * 255
+        gt_sketch = 255 - gt_sketch; pred_sketch = 255 - pred_sketch
+        full = torch.stack((gt_sketch,pred_sketch,dummy),dim=-1)
+        plt.imshow(full)
         
-    #     plt.savefig('results/'+str(i)+'.png')
-    #     plt.close()
+        plt.savefig('results/'+str(i)+'.png')
+        plt.close()

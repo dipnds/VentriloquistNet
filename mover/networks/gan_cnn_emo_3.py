@@ -1,9 +1,6 @@
 import torch.nn as nn
 import torch
 
-# losses were 1e-4 and 4e-5
-# 1*(20* + 0*) + 0.5* + 0.5*
-
 def init_weights(m):
     if isinstance(m, nn.Linear):
         nn.init.normal_(m.weight,mean=0,std=0.008)
@@ -29,57 +26,57 @@ class Generator(nn.Module):
     def __init__(self):
         super(Generator,self).__init__()
         
-        self.mel_conv = nn.Sequential(
-            nn.Conv2d(1, 32, (3,5), padding=(1,2)), # 80, 92
+        # self.mel_conv = nn.Sequential(
+        #     nn.Conv2d(1, 32, (3,5), padding=(1,2)), # 80, 92
+        #     nn.BatchNorm2d(32),
+        #     nn.LeakyReLU(negative_slope=0.1,inplace=True),
+        #     nn.AvgPool2d((2,1)), # 40, 92
+        #     nn.Conv2d(32, 64, 3, padding=1), # 40, 92
+        #     nn.BatchNorm2d(64),
+        #     nn.LeakyReLU(negative_slope=0.1,inplace=True),
+        #     nn.AvgPool2d((2,1)), # 20, 92
+        #     nn.Conv2d(64, 128, 3, padding=(1,0)), # 20, 90
+        #     nn.BatchNorm2d(128),
+        #     nn.LeakyReLU(negative_slope=0.1,inplace=True),
+        #     nn.AvgPool2d((2,1)), # 10, 90
+        #     nn.Conv2d(128, 256, 3, padding=1), # 10, 90
+        #     nn.BatchNorm2d(256),
+        #     nn.LeakyReLU(negative_slope=0.1,inplace=True),
+        #     nn.AvgPool2d((1,3)), # 10, 30
+        #     nn.Conv2d(256, 512, 3, padding=1), # 5, 30
+        #     nn.BatchNorm2d(512),
+        #     nn.LeakyReLU(negative_slope=0.1,inplace=True),
+        #     nn.AvgPool2d((2,1)), # 10, 30
+        #     nn.Conv2d(512, 512, 3, padding=1), # 5, 30
+        #     nn.BatchNorm2d(512),
+        #     nn.LeakyReLU(negative_slope=0.1,inplace=True)
+        #     )
+        
+        self.mfcc_conv = nn.Sequential(
+            nn.Conv2d(1, 32, (3,5), padding=(1,2)), # 30, 92
             nn.BatchNorm2d(32),
             nn.LeakyReLU(negative_slope=0.1,inplace=True),
-            nn.AvgPool2d((2,1)), # 40, 92
-            nn.Conv2d(32, 64, 3, padding=1), # 40, 92
+            nn.AvgPool2d((2,1)), # 15, 92
+            nn.Conv2d(32, 64, 3, padding=1), # 15, 92
             nn.BatchNorm2d(64),
             nn.LeakyReLU(negative_slope=0.1,inplace=True),
-            nn.AvgPool2d((2,1)), # 20, 92
-            nn.Conv2d(64, 128, 3, padding=(1,0)), # 20, 90
+            nn.AvgPool2d((2,1), padding=(1,0)), # 8, 92
+            nn.Conv2d(64, 128, 3, padding=(1,0)), # 8, 90
             nn.BatchNorm2d(128),
             nn.LeakyReLU(negative_slope=0.1,inplace=True),
-            nn.AvgPool2d((2,1)), # 10, 90
-            nn.Conv2d(128, 256, 3, padding=1), # 10, 90
+            nn.AvgPool2d((2,1)), # 4, 90
+            nn.Conv2d(128, 256, 3, padding=1), # 4, 90
             nn.BatchNorm2d(256),
             nn.LeakyReLU(negative_slope=0.1,inplace=True),
-            nn.AvgPool2d((1,3)), # 10, 30
-            nn.Conv2d(256, 512, 3, padding=1), # 5, 30
+            nn.AvgPool2d((1,3)), # 4, 30
+            nn.Conv2d(256, 512, 3, padding=1), # 4, 30
             nn.BatchNorm2d(512),
             nn.LeakyReLU(negative_slope=0.1,inplace=True),
-            nn.AvgPool2d((2,1)), # 10, 30
-            nn.Conv2d(512, 512, 3, padding=1), # 5, 30
-            nn.BatchNorm2d(512),
+            nn.AvgPool2d((2,1)), # 2, 30
+            nn.Conv2d(512, 1024, 3, padding=1), # 2, 30
+            nn.BatchNorm2d(1024),
             nn.LeakyReLU(negative_slope=0.1,inplace=True)
             )
-        
-        # self.mfcc_conv = nn.Sequential(
-        #     nn.Conv2d(1, 32, (3,5), padding=(1,2)), # 30, 92
-        #     nn.BatchNorm2d(32),
-        #     nn.LeakyReLU(negative_slope=0.05,inplace=True),
-        #     nn.AvgPool2d((2,1)), # 15, 92
-        #     nn.Conv2d(32, 64, 3, padding=1), # 15, 92
-        #     nn.BatchNorm2d(64),
-        #     nn.LeakyReLU(negative_slope=0.05,inplace=True),
-        #     nn.AvgPool2d((2,1), padding=(1,0)), # 8, 92
-        #     nn.Conv2d(64, 128, 3, padding=(1,0)), # 8, 90
-        #     nn.BatchNorm2d(128),
-        #     nn.LeakyReLU(negative_slope=0.05,inplace=True),
-        #     nn.AvgPool2d((2,1)), # 4, 90
-        #     nn.Conv2d(128, 256, 3, padding=1), # 4, 90
-        #     nn.BatchNorm2d(256),
-        #     nn.LeakyReLU(negative_slope=0.05,inplace=True),
-        #     nn.AvgPool2d((1,3)), # 4, 30
-        #     nn.Conv2d(256, 512, 3, padding=1), # 4, 30
-        #     nn.BatchNorm2d(512),
-        #     nn.LeakyReLU(negative_slope=0.05,inplace=True),
-        #     nn.AvgPool2d((2,1)), # 2, 30
-        #     nn.Conv2d(512, 1024, 3, padding=1), # 2, 30
-        #     nn.BatchNorm2d(1024),
-        #     nn.LeakyReLU(negative_slope=0.05,inplace=True)
-        #     )
         
         # self.lip_conv = nn.Sequential(
         #     nn.Conv1d(512*5, 512, 3, padding=1), # 512, 30
@@ -107,7 +104,7 @@ class Generator(nn.Module):
         #     )
         
         self.combo_conv = nn.Sequential(
-            nn.Conv1d(512*5+128, 512, 3, padding=1), # 512, 30 # 512*5+128
+            nn.Conv1d(1024*2+128, 512, 3, padding=1), # 512, 30 # 512*5+128
             nn.BatchNorm1d(512),
             nn.LeakyReLU(negative_slope=0.1,inplace=True),
             nn.Conv1d(512, 136*2, 3, padding=1), # 272, 30
@@ -126,10 +123,10 @@ class Generator(nn.Module):
         # self.emo_conv.apply(init_weights)
         self.combo_conv.apply(init_weights)
         
-    def forward(self, mel, feat_emo):
+    def forward(self, mfcc, feat_emo):
         
-        mel = self.mel_conv(mel)
-        mel = mel.view(-1, 512*5, 30) # B, F, T
+        mfcc = self.mfcc_conv(mfcc)
+        mfcc = mfcc.view(-1, 1024*2, 30) # B, F, T
         feat_emo = feat_emo.squeeze(2) # B, F, T
         
         # lip_kp = self.lip_conv(mel)
@@ -137,7 +134,7 @@ class Generator(nn.Module):
         # emo_kp = self.emo_conv(feat_emo)
         # emo_kp = emo_kp.permute(0,2,1) # B, T, F
         
-        combo_kp = torch.cat((mel,feat_emo),dim=1) # B, F, T
+        combo_kp = torch.cat((mfcc,feat_emo),dim=1) # B, F, T
         combo_kp = self.combo_conv(combo_kp)
         combo_kp = combo_kp.permute(0,2,1) # B, T, F
                 
@@ -273,7 +270,7 @@ class lip_cossim(nn.Module):
         pred_mouth = torch.matmul(pred_kp,self.wt_mouth)
         target_mouth = torch.matmul(target_kp,self.wt_mouth)
         # lab = - torch.ones(target_kp.shape[0],1).to(self.device)
-        # loss_lower = self.crit_lower1(pred_mouth,target_mouth)#,lab)
+        # loss_lower = self.crit_lower2(pred_mouth,target_mouth,lab)
         
         # pred_mouth = pred_mouth.reshape((-1,30,68,2))
         # pred_mouth = pred_mouth - (pred_mouth.sum(dim=2,keepdim=True))/37
@@ -284,6 +281,7 @@ class lip_cossim(nn.Module):
         
         pred_mouth = torch.diff(pred_mouth,dim=1)
         target_mouth = torch.diff(target_mouth,dim=1)
+        # lab = - torch.ones(target_kp.shape[0],1).to(self.device)
         loss_lower = self.crit_lower1(pred_mouth,target_mouth)
         
         # keep temporal variation, remove person's shape
