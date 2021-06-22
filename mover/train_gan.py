@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from dataprep_gan import prep
-from networks.gan_cnn_emo_3 import (Generator, Discriminator_RealFakeSeq,
+from networks.gan_cnn_emo_2 import (Generator, Discriminator_RealFakeSeq,
                         LossGrealfake, LossDSCreal, LossDSCfake,
                         lip_cossim, emo_cossim)
 
@@ -47,16 +47,16 @@ def train(G, D_rf, prTr_emo_model, prTr_CE, epoch): # D_ls
         
         opG.zero_grad()
         # pred_kp = G(mel,feat_emo)
-        pred_kp = G(mfcc,feat_emo)
+        pred_kp = G(mel,feat_emo)
 
         # if (epoch)%2 == 0: wt_dist = 0.9
         # else : wt_dist = 0.5
-        wt_dist = 1; wt_real = 1; wt_emo = 0.5
+        wt_dist = 1; wt_real = 0.5; wt_emo = 0.5
         lab_rf = D_rf(pred_kp)
         lossG_rf = crG_rf(lab_rf)
         lossG_rest, lossG_lower = cr_lipDist(pred_kp,target_kp)
         # lossG_dist = 50*(epoch+1)*lossG_lower + 5*(epoch+1)*lossG_rest # it was 100 and 10
-        lossG_dist = 2*lossG_lower + 1*lossG_rest
+        lossG_dist = 10*lossG_lower + 10*lossG_rest
         
         emo_fake = prTr_CE(pred_kp)
         lossG_ce = cr_emo(emo_fake,lab_emo)
@@ -100,6 +100,10 @@ def train(G, D_rf, prTr_emo_model, prTr_CE, epoch): # D_ls
 
 G = Generator().to(device)
 D_rf = Discriminator_RealFakeSeq().to(device)
+
+# G = torch.load('models/mel_latest/60Tr_G.model',map_location=device)
+# D_rf = torch.load('models/mel_latest/60Tr_D_rf.model',map_location=device)
+
 prTr_CE = torch.load('models/bestpreTr_CE.model',map_location=device)
 for param in prTr_CE.parameters(): param.requires_grad = False
 prTr_CE.eval()
@@ -113,7 +117,7 @@ crDreal = LossDSCreal(); crDfake = LossDSCfake()
 cr_emo = emo_cossim(device)#,prTr_CE)
 
 opG = optim.Adam(G.parameters(), lr=1e-4, betas=(0.9,0.999), eps=1e-8) # lstm 1e-4
-opD_rf = optim.Adam(D_rf.parameters(), lr=6e-5, betas=(0.9,0.999), eps=1e-8) # lstm 4e-5
+opD_rf = optim.Adam(D_rf.parameters(), lr=8e-5, betas=(0.9,0.999), eps=1e-8) # lstm 4e-5
 
 for epoch in range(epochs):
     train(G,D_rf,prTr_emo_model,prTr_CE,epoch) # D_ls

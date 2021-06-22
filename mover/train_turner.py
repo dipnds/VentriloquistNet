@@ -11,19 +11,19 @@ from torchvision.io import read_image
 from dataprep_turner import prep
 import networks.turner as network
 
-batch_size = 8
-epochs = 10
+batch_size = 64
+epochs = 100
 log_nth = 10; plot_nth = 50
 
 device = torch.device('cuda:0')
 
 modelpath = 'models/'
 #datapath = '/media/deepan/Backup/thesis/mead/processed/'
-datapath = '/storage/user/dasd/mead/processed/'
+datapath = '/usr/stud/dasd/workspace/mead/processed/'
 tr_set = prep(datapath,'train')
 ev_set = prep(datapath,'eval')
-tr_loader = DataLoader(tr_set,batch_size=batch_size,shuffle=True,num_workers=4)
-ev_loader = DataLoader(ev_set,batch_size=batch_size,shuffle=False,num_workers=2)
+tr_loader = DataLoader(tr_set,batch_size=batch_size,shuffle=True,num_workers=16)
+ev_loader = DataLoader(ev_set,batch_size=batch_size,shuffle=False,num_workers=16)
 
 name = network.__name__.split('.')[1]
 writer = SummaryWriter(comment=name)
@@ -86,13 +86,13 @@ def eval(model, epoch, best_loss, scheduler):
             best_loss = loss
             torch.save(model, modelpath+'bestEv_'+name+'.model')
             
-        # scheduler.step()
+        scheduler.step()
         return best_loss
 
 model = network.Net().to(device)
-criterion = nn.MSELoss(reduction='mean')
+criterion = nn.L1Loss(reduction='mean')
 optimizer = optim.Adam(model.parameters(), lr=1e-4, betas=(0.9,0.999), eps=1e-8)
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.1)
+scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.4, verbose=True)
 
 bestEv_loss = None; bestTr_loss = None
 for epoch in range(epochs):
