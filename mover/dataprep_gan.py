@@ -3,7 +3,7 @@ from torch.utils.data import Dataset
 import os
 import pickle as pkl
 import numpy as np
-import random
+# import random
 import torch.nn.functional as F
 
 class prep(Dataset):
@@ -84,22 +84,24 @@ class prep(Dataset):
         mel = (mel - self.mel_mean) / self.mel_std
         
         # negative example of kp for D_lipsync training
-        L = list(np.arange(0,len(self.datalist)))
-        L.pop(idx)
-        neg_idx = random.choice(L)
+        # L = list(np.arange(0,len(self.datalist)))
+        # L.pop(idx)
+        # neg_idx = random.choice(L)
         
-        path = self.datalist[neg_idx]
-        neg_kp_seq = torch.load(path + 'kp_seq.pt')[0:fps].float()
-        m = neg_kp_seq.mean(dim=(0,1),keepdims=True)
-        s = neg_kp_seq.std(dim=(0,1),keepdims=True)
-        neg_kp_seq = (neg_kp_seq - m) / s
-        neg_kp_seq = neg_kp_seq.flatten(start_dim=1)
-        neg_kp_seq -= self.kp_init
+        # path = self.datalist[neg_idx]
+        # neg_kp_seq = torch.load(path + 'kp_seq.pt')[0:fps].float()
+        # m = neg_kp_seq.mean(dim=(0,1),keepdims=True)
+        # s = neg_kp_seq.std(dim=(0,1),keepdims=True)
+        # neg_kp_seq = (neg_kp_seq - m) / s
+        # neg_kp_seq = neg_kp_seq.flatten(start_dim=1)
+        # neg_kp_seq -= self.kp_init
         
         if kp_seq.shape[0] < fps: kp_seq = F.pad(kp_seq,(0,0,0,fps-kp_seq.shape[0]))
-        if neg_kp_seq.shape[0] < fps: neg_kp_seq = F.pad(neg_kp_seq,(0,0,0,fps-neg_kp_seq.shape[0]))
+        # if neg_kp_seq.shape[0] < fps: neg_kp_seq = F.pad(neg_kp_seq,(0,0,0,fps-neg_kp_seq.shape[0]))
                 
         if mel.shape[2] < fps*3+2: mel = F.pad(mel,(0,fps*3+2-mel.shape[2],0,0,0,0))
         if mfcc.shape[2] < fps*3+2: mfcc = F.pad(mfcc,(0,fps*3+2-mfcc.shape[2],0,0,0,0))
         
-        return (mel.float(), mfcc.float(), kp_seq, neg_kp_seq)
+        noise = torch.rand((512*5,30)) * 0.01
+        
+        return (mel.float(), mfcc.float(), kp_seq, noise)#, neg_kp_seq)

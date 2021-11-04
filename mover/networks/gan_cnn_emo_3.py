@@ -58,8 +58,8 @@ class Generator(nn.Module):
             nn.Conv1d(136*2, 136*2, 3, padding=1), # 272, 30
             nn.BatchNorm1d(136*2),
             nn.LeakyReLU(negative_slope=0.1,inplace=True),
-            nn.Conv1d(136*2, 136, 5, padding=2), # 136, 30
-            nn.Tanh()
+            nn.Conv1d(136*2, 136, 5, padding=2) # 136, 30
+            # nn.Tanh()
             )
         
         self.emo_conv = nn.Sequential(
@@ -69,13 +69,24 @@ class Generator(nn.Module):
             nn.Conv1d(136*2, 136*2, 3, padding=1), # 272, 30
             nn.BatchNorm1d(136*2),
             nn.LeakyReLU(negative_slope=0.1,inplace=True),
-            nn.Conv1d(136*2, 136, 5, padding=2), # 136, 30
-            nn.Tanh()
+            nn.Conv1d(136*2, 136, 5, padding=2) # 136, 30
+            # nn.Tanh()
             )
+        
+        # self.combo_conv = nn.Sequential(
+        #     nn.Conv1d(136, 136, 5, padding=2), # 512, 30
+        #     nn.BatchNorm1d(136),
+        #     nn.LeakyReLU(negative_slope=0.1,inplace=True),
+        #     nn.Conv1d(136, 136, 5, padding=2), # 272, 30
+        #     nn.Tanh()
+        #     )
+        
+        self.final = nn.Tanh()
         
         # self.mel_conv.apply(init_weights)
         self.lip_conv.apply(init_weights)
         self.emo_conv.apply(init_weights)
+        # self.combo_conv.apply(init_weights)
         
         self.wt_mouth = torch.zeros(136)
         self.wt_mouth[-40:] = 1; self.wt_mouth[:34] = 1 # lips and jaw only
@@ -84,17 +95,18 @@ class Generator(nn.Module):
         self.wt_mouth = self.wt_mouth.to(device)
         
         self.wt_rest = torch.ones(136)
-        self.wt_rest[-40:] = 0#.2
-        self.wt_rest[:34] = 0#.2 # other than lips and jaw
+        self.wt_rest[-40:] = 0.2; self.wt_rest[:34] = 0.2 # other than lips and jaw
         self.wt_rest = torch.diag(self.wt_rest)
         self.wt_rest.requires_grad = False
         self.wt_rest = self.wt_rest.to(device)
         
-    def forward(self, mel, feat_emo):
+    def forward(self, mel, feat_emo, noise):
         
         mel = self.mel_conv(mel)
         mel = mel.view(-1, 512*5, 30) # B, F, T
         feat_emo = feat_emo.squeeze(2) # B, F, T
+        
+        # mel = mel + noise
         
         lip_kp = self.lip_conv(mel)
         lip_kp = lip_kp.permute(0,2,1) # B, T, F
@@ -105,6 +117,10 @@ class Generator(nn.Module):
         emo_kp = torch.matmul(emo_kp,self.wt_rest)
         
         combo_kp = lip_kp + emo_kp
+        # combo_kp = combo_kp.permute(0,2,1) # B, F, T
+        # combo_kp = self.combo_conv(combo_kp)
+        # combo_kp = combo_kp.permute(0,2,1) # B, T, F
+        combo_kp = self.final(combo_kp)
                 
         return combo_kp, lip_kp # emo_kp
     
@@ -183,13 +199,20 @@ class LossGrealfake(nn.Module):
 class emo_cossim(nn.Module):
     def __init__(self, device):
         super(emo_cossim, self).__init__()
-        self.crit = nn.CosineEmbeddingLoss()  
+        # self.crit = nn.CosineEmbeddingLoss()
+        self.crit = nn.MSELoss()
+        # self.crit = nn.CrossEntropyLoss()
         self.device = device
     def forward(self, pred, gt):
+        
         pred = nn.functional.softmax(pred,dim=1)
         gt = nn.functional.softmax(gt,dim=1)
-        lab = torch.ones(gt.shape[0],1).to(self.device)
-        loss = self.crit(pred,gt,lab)
+        # lab = torch.ones(gt.shape[0],1).to(self.device)
+        
+        # !!! If changing loss, remember to put back Softmax
+        # loss = self.crit(pred,torch.argmax(gt,dim=1))#,lab)
+        loss = self.crit(pred,gt)#,lab)
+        
         return loss
 
 class lip_cossim(nn.Module):
@@ -216,6 +239,7 @@ class lip_cossim(nn.Module):
     
     def forward(self, pred_kp, pred_mouth, target_kp):
         
+        pred_mouth = torch.matmul(pred_kp,self.wt_mouth) # or only on lip_conv op?
         target_mouth = torch.matmul(target_kp,self.wt_mouth)
         
         pred_mouth = pred_mouth.reshape((-1,30,68,2))
@@ -229,22 +253,21 @@ class lip_cossim(nn.Module):
         # loss_lower = self.crit_lower2(pred_mouth,target_mouth,lab)
         loss_lower = self.crit_lower1(pred_mouth,target_mouth)#,lab)
         
-        pred_mouth = torch.diff(pred_mouth,dim=1)
-        target_mouth = torch.diff(target_mouth,dim=1)
+        # pred_mouth = torch.diff(pred_mouth,dim=1)
+        # target_mouth = torch.diff(target_mouth,dim=1)
         # print(pred_mouth.abs().mean(dim=(0,1)),target_mouth.abs().mean(dim=(0,1)))
-        loss_lower += self.crit_lower1(pred_mouth,target_mouth)
-        
-        loss_rest = self.crit_energy(pred_kp.abs().mean(dim=1),target_kp.abs().mean(dim=1))
-        
+        # loss_lower += self.crit_lower1(pred_mouth,target_mouth)
+                
         pred_rest = torch.matmul(pred_kp,self.wt_rest)
         target_rest = torch.matmul(target_kp,self.wt_rest)
-        
-        pred_rest = torch.diff(pred_rest,dim=1)
+        loss_rest = self.crit_energy(pred_rest.abs().mean(dim=1),target_rest.abs().mean(dim=1))
+
+        # pred_rest = torch.diff(pred_rest,dim=1)
         # pred_rest = pred_rest.abs().mean(dim=1)
-        target_rest = torch.diff(target_rest,dim=1)
+        # target_rest = torch.diff(target_rest,dim=1)
         # target_rest = target_rest.abs().mean(dim=1)
         # loss_rest += self.crit_energy(pred_rest.abs().mean(dim=1),target_rest.abs().mean(dim=1).abs())
-        loss_rest += self.crit_energy(pred_rest.mean(dim=1).abs(),target_rest.mean(dim=1).abs())
+        # loss_rest += self.crit_energy(pred_rest.mean(dim=1).abs(),target_rest.mean(dim=1).abs())
                 
         return loss_rest, loss_lower
     

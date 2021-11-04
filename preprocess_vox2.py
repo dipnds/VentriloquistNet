@@ -8,6 +8,7 @@ import warnings
 import tqdm
 import pickle as pkl
 import librosa
+from librosa.feature import melspectrogram as melspec
 
 import face_alignment
 import audio
@@ -95,21 +96,27 @@ def video_processing_loop(person_list, path_in, path_out, fa):
                         bbox = [corner]*frame.shape[0]
                         video_kp = fa.get_landmarks_from_batch(frame,bbox)
                         
-                        sketch = []
-                        for frame_kp in video_kp:
-                            frame_kp = frame_kp.astype(int)
-                            sketch.append(kp2sketch(frame_kp,frame.shape[2],frame.shape[3]))
-                        sketch = torch.stack(sketch); sketch = torch.unsqueeze(sketch,1)
-                        video_kp = torch.tensor(np.stack(video_kp)); video_kp = video_kp.type(torch.uint8)
-                        sample = {'sketch':sketch, 'kp':video_kp}
+                        # sketch = []
+                        # for frame_kp in video_kp:
+                        #     frame_kp = frame_kp.astype(int)
+                        #     sketch.append(kp2sketch(frame_kp,frame.shape[2],frame.shape[3]))
+                        # sketch = torch.stack(sketch); sketch = torch.unsqueeze(sketch,1)
+                        # video_kp = torch.tensor(np.stack(video_kp)); video_kp = video_kp.type(torch.uint8)
+                        # sample = {'sketch':sketch, 'kp':video_kp}
+                        
+                        # fig = plt.figure()
+                        # ax = fig.add_subplot(projection='3d')
+                        # ax.scatter(ldmk[0][:,2],ldmk[0][:,0],-ldmk[0][:,1])
+                        # plt.show()
                         
                         if not os.path.isdir(path_out+person+'/'+vid+'/'):
                             os.makedirs(path_out+person+'/'+vid+'/')    
-                        torch.save(frame,path_out+person+'/'+vid+'/'+'face_'+utter[:-4]+'.pt')
-                        torch.save(sample,path_out+person+'/'+vid+'/'+'sketch_'+utter[:-4]+'.pt')
+                        # torch.save(frame,path_out+person+'/'+vid+'/'+'face_'+utter[:-4]+'.pt')
+                        # torch.save(sample,path_out+person+'/'+vid+'/'+'sketch_'+utter[:-4]+'.pt')
+                        torch.save(video_kp,path_out+person+'/'+vid+'/'+'ldmk3d_'+utter[:-4]+'.pt')
                         
                     except:
-                        print(person+'/'+vid)
+                        print('Video Error:', person+'/'+vid)
                         
     return 0
 
@@ -131,17 +138,27 @@ def audio_processing_loop(person_list, path_in, path_out):
                     
                     try:
                         (_,speech,fps) = read_video(path_in+person+'/'+vid+'/'+utter)
-                        speech = speech[0]
-                        if fps['audio_fps'] != 16000:
-                            speech = librosa.resample(speech.numpy(),fps['audio_fps'],16000)
-                        speech = speech[0:16000]
-                        mel = audio.melspectrogram(speech)
+                        speech = speech[0].numpy(); fps = fps['audio_fps']
+                        if fps != 16000:
+                            speech = librosa.resample(speech,fps,16000)
+                        
+                        speech = speech[0:25600] # 16000 sr * (40 frames / 25 fps)
+                        #mel_emo = audio.melspectrogram(speech)
+                        
+                        mel_frame = []
+                        speech = np.pad(speech,(1604-320),'reflect')
+                        for i in range(40):
+                            seg = speech[i*640:i*640+3208]
+                            S = melspec(seg,fps,n_fft=1024,fmin=50,n_mels=80,hop_length=156,center=False)
+                            mel_frame.append(torch.tensor(S))
+                            
+                        mel_frame = torch.stack(mel_frame)
                         
                         if not os.path.isdir(path_out+person+'/'+vid+'/'):
                             os.makedirs(path_out+person+'/'+vid+'/')    
-                        torch.save(mel,path_out+person+'/'+vid+'/'+'mel_'+utter[:-4]+'.pt')
+                        torch.save(mel_frame,path_out+person+'/'+vid+'/'+'melframe_'+utter[:-4]+'.pt')
                     except:
-                        print(person+'/'+vid)
+                        print('Audio Error:', person+'/'+vid)
                         
     return 0
                     
@@ -164,13 +181,13 @@ if not os.path.isfile('split_vox2.pkl'):
     pkl.dump(id_list,open('split_vox2.pkl','wb'))
 
 # init face alignment
-# fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D,flip_input=False,
-                                  # device='cuda',face_detector='blazeface') # default 'sfd'
+fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._3D,flip_input=False,
+                                   device='cuda',face_detector='blazeface') # default 'sfd'
 
 # loop over subsets
 print(len(file_list))
-a = 5400; b = 5994
+a = 4200; b = 4500
 print(a,b)
-# video_processing_loop(file_list[a:b], path_in, path_out, fa)
+video_processing_loop(file_list[a:b], path_in, path_out, fa)
 # video_processing_loop(id_list['test'], path_in, path_out, fa)
-audio_processing_loop(file_list[a:], path_in, path_out)
+audio_processing_loop(file_list[a:b], path_in, path_out)

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import pickle as pkl
-import random
+# import random
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 import warnings
@@ -68,10 +68,10 @@ def kp2sketch(kp,h,w):
 # M013 angry 028; M031 happy 010; M034 neutral 038; W036 sad 029; W029 disgusted 033; W036 surprised 029
 # M003 neutral 017; angry 026; happy 028; sad 007; disgusted 015; surprised 026
 
-person = 'M003/' 
-emotion = 'angry/'
+person = 'M031/' 
+emotion = 'surprised/'
 level = 'level_3/'
-utterance = '026'
+utterance = '018'
 
 # device = torch.device('cpu')
 device = torch.device('cuda:0')
@@ -95,6 +95,9 @@ mel_std = mel['s']
 mel_std = mel_std.unsqueeze(0).unsqueeze(0).unsqueeze(-1)
 
 kp_init = torch.load('kp_general.pt').flatten().unsqueeze(0).to(device)
+# kp_init = torch.load(datapath + 'processed/' + person + '/neutral/level_1/001/kp_seq.pt')
+# print(kp_init.shape)
+# kp_init = 
 
 def infer(G, prTr_emo_model, prTr_CE, mel, mfcc):
     
@@ -103,17 +106,18 @@ def infer(G, prTr_emo_model, prTr_CE, mel, mfcc):
     with torch.no_grad():
         mfcc = mfcc.to(device)
         mel = mel.to(device)
+        noise = torch.rand((mel.shape[0],512*5,30)) * 0.01; noise = noise.to(device)
         lab_emo_sp, feat_emo = prTr_emo_model(mfcc)
         print(nn.functional.softmax(lab_emo_sp,dim=1))
-        pred_kp = G(mel,feat_emo)
+        pred_kp = G(mel,feat_emo,noise)
         if isinstance(pred_kp, tuple):
             pred_kp = pred_kp[0]
         lab_emo_kp = prTr_CE(pred_kp)
         print(nn.functional.softmax(lab_emo_kp,dim=1))
         return pred_kp
 
-G = torch.load(modelpath+'bestTr_G.model',map_location=device)
-# G = torch.load(modelpath+'mel_latest/80Tr_G.model',map_location=device)
+G = torch.load(modelpath+'100Tr_G.model',map_location=device)
+# G = torch.load(modelpath+'best/80Tr_G.model',map_location=device)
 prTr_emo_model = torch.load('models/bestReTr_emo_classifier_seq.model',map_location=device)
 prTr_CE = torch.load('models/bestpreTr_CE.model',map_location=device)
 
@@ -169,7 +173,7 @@ for i in range(turned_pred.shape[0]):
     ip.append(temp)
 ip = torch.stack(ip).to(device)
 
-turner = torch.load('models/bestEv_turner.model')
+turner = torch.load('models/best/bestTr_turner.model')
 turned_pred = turner(ip)
 
 turned_pred = (turned_pred.detach().cpu().reshape(-1,68,2) * pred_s) + pred_m

@@ -11,7 +11,7 @@ from torchvision.io import read_image
 from dataprep_turner import prep
 import networks.turner as network
 
-batch_size = 64
+batch_size = 32
 epochs = 100
 log_nth = 10; plot_nth = 50
 
@@ -92,7 +92,7 @@ def eval(model, epoch, best_loss, scheduler):
 model = network.Net().to(device)
 criterion = nn.L1Loss(reduction='mean')
 optimizer = optim.Adam(model.parameters(), lr=1e-4, betas=(0.9,0.999), eps=1e-8)
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.4, verbose=True)
+scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.8, verbose=True)
 
 bestEv_loss = None; bestTr_loss = None
 for epoch in range(epochs):

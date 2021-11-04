@@ -1,7 +1,7 @@
 from torch.utils.data import DataLoader
 import torch.optim as optim
 import torch
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
 import torch.nn as nn
 import os, tqdm
 import numpy as np
@@ -24,20 +24,20 @@ modelpath = 'models/'
 datapath = '/usr/stud/dasd/workspace/mead/processed/'
 tr_set = prep(datapath,'train')
 ev_set = prep(datapath,'eval')
-tr_loader = DataLoader(tr_set,batch_size=batch_size,shuffle=True,num_workers=6)
+tr_loader = DataLoader(tr_set,batch_size=batch_size,shuffle=True,num_workers=15)
 #ev_loader = DataLoader(ev_set,batch_size=batch_size,shuffle=False,num_workers=3)
 
 # writer = SummaryWriter() # comment=name
 
-def train(G, D_rf, prTr_emo_model, prTr_CE, epoch, scheduler): # D_ls
+def train(G, D_rf, prTr_emo_model, prTr_CE, epoch):#, scheduler): # D_ls
     
     G.train(); D_rf.train(); prTr_emo_model.eval(); prTr_CE.train()#; D_ls.train()
     G_loss = []; D_loss = []
     tr_batch = tqdm.tqdm(enumerate(tr_loader),total=len(tr_loader))
         
-    for batch, (mel, mfcc, target_kp, _) in tr_batch:
+    for batch, (mel, mfcc, target_kp, noise) in tr_batch:
         mfcc = mfcc.to(device); mel = mel.to(device)
-        target_kp = target_kp.to(device)#; negative_kp = negative_kp.to(device)
+        target_kp = target_kp.to(device); noise = noise.to(device)
         
         with torch.no_grad():
             lab_emo, feat_emo = prTr_emo_model(mfcc)
@@ -46,23 +46,21 @@ def train(G, D_rf, prTr_emo_model, prTr_CE, epoch, scheduler): # D_ls
         
         opG.zero_grad()
         # pred_kp = G(mel,feat_emo)
-        pred_kp, lip_kp = G(mel,feat_emo)
+        pred_kp, lip_kp = G(mel,feat_emo,noise)
 
         # if (epoch)%2 == 0: wt_dist = 0.9
         # else : wt_dist = 0.5
-        wt_dist = 1; wt_real = 0.5; wt_emo = 0.5
+        wt_dist = 1; wt_real = 0.5; wt_emo = 2
         lab_rf = D_rf(pred_kp)
         lossG_rf = crG_rf(lab_rf)
         lossG_rest, lossG_lower = cr_lipDist(pred_kp,lip_kp,target_kp)
-        lossG_dist = 2*lossG_lower + 1*lossG_rest
+        lossG_dist = 20*lossG_lower + 10*lossG_rest
         
         emo_fake = prTr_CE(pred_kp)
         lossG_ce = cr_emo(emo_fake,lab_emo)
         
         loss_G = wt_dist*lossG_dist + wt_real*lossG_rf + wt_emo*lossG_ce
         loss_G.backward()
-        # print(list(G.lip_conv.children())[-1].weight.grad)
-        # print(list(G.lip_conv.children())[-1].weight)
         opG.step()
                 
         opD_rf.zero_grad()
@@ -91,7 +89,7 @@ def train(G, D_rf, prTr_emo_model, prTr_CE, epoch, scheduler): # D_ls
         
     torch.save(G, modelpath+'bestTr_G.model')
     torch.save(D_rf, modelpath+'bestTr_D_rf.model')
-    scheduler.step()
+    # scheduler.step()
     
     if (epoch+1)%20 == 0:
         torch.save(G, modelpath+str(epoch+1)+'Tr_G.model')
@@ -118,10 +116,10 @@ cr_emo = emo_cossim(device)#,prTr_CE)
 
 opG = optim.Adam(G.parameters(), lr=1e-4, betas=(0.9,0.999), eps=1e-8) # lstm 1e-4
 opD_rf = optim.Adam(D_rf.parameters(), lr=4e-5, betas=(0.9,0.999), eps=1e-8) # lstm 4e-5
-scheduler = optim.lr_scheduler.StepLR(opD_rf, step_size=10, gamma=0.5, verbose=True)
+scheduler = optim.lr_scheduler.StepLR(opD_rf, step_size=10, gamma=0.8, verbose=True)
 
 for epoch in range(epochs):
-    train(G,D_rf,prTr_emo_model,prTr_CE,epoch,scheduler) # D_ls
+    train(G,D_rf,prTr_emo_model,prTr_CE,epoch)#,scheduler) # D_ls
     # eval(G,D_rf,prTr_CE,prTr_emo_model,epoch)#,scheduler)
 
 # TODO : lr scheduler, based on losses of G and D

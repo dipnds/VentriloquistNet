@@ -54,19 +54,19 @@ class prep(Dataset):
         
         ip = []; target = []
         for filename in pose_list:
-            if filename == 'left_30_kp.pt' or filename == 'right_30_kp.pt':
-                gt = torch.load(path+filename)
-                gt = gt.type(torch.float)
-                gt = gt - gt.mean(dim=0); gt = gt / gt.std(dim=0)
-                gt = gt.flatten()
-                target.append(gt)
-                
-                label = self.label_dict[filename]
-                temp = torch.cat((front,label))
-                ip.append(temp)
+            # if filename == 'left_30_kp.pt' or filename == 'right_30_kp.pt':
+            gt = torch.load(path+filename)
+            gt = gt.type(torch.float)
+            gt = gt - gt.mean(dim=0); gt = gt / gt.std(dim=0)
+            gt = gt.flatten()
+            target.append(gt)
+            
+            label = self.label_dict[filename]
+            temp = torch.cat((front,label))
+            ip.append(temp)
         
         ip = torch.stack(ip); target = torch.stack(target)
-        ip = torch.nn.functional.pad(ip,(0,0,0,2 - ip.shape[0]),"constant",0)
-        target = torch.nn.functional.pad(target,(0,0,0,2 - target.shape[0]),"constant",0)
+        ip = torch.nn.functional.pad(ip,(0,0,0,6 - ip.shape[0]),"constant",0)
+        target = torch.nn.functional.pad(target,(0,0,0,6 - target.shape[0]),"constant",0)
                 
         return ip, target
