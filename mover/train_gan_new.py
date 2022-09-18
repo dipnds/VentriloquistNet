@@ -31,7 +31,7 @@ tr_loader = DataLoader(tr_set,batch_size=batch_size,shuffle=True,num_workers=15)
 
 def train(G, D_rf, prTr_emo_model, prTr_CE, epoch):#, scheduler): # D_ls
     
-    G.train(); D_rf.train(); prTr_emo_model.eval(); prTr_CE.train()#; D_ls.train()
+    G.train(); D_rf.train(); prTr_emo_model.eval(); prTr_CE.eval()#; D_ls.train()
     G_loss = []; D_loss = []
     tr_batch = tqdm.tqdm(enumerate(tr_loader),total=len(tr_loader))
         

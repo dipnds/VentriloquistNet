@@ -10,7 +10,6 @@ class prep(Dataset):
     
     def __init__(self, path, split):
         
-        # mfcc = pkl.load(open('/media/deepan/Backup/thesis/'+'emo_data.pkl','rb'))['feat_train']
         mfcc = pkl.load(open('/usr/stud/dasd/workspace/'+'emo_data_mfcc.pkl','rb'))['feat_train']
         self.mfcc_mean = np.mean(mfcc, axis=(0,2))
         self.mfcc_mean = torch.tensor(self.mfcc_mean).float().unsqueeze(-1)

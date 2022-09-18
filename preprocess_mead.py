@@ -84,7 +84,7 @@ def audio_process(person_list, path_in, path_out):
                             speech = speech[0].numpy()
                             mfcc = librosa.feature.mfcc(speech,sr=48000,n_fft=2048,hop_length=522,n_mfcc=30)
                             mel = audio.melspectrogram(speech)
-    
+        
                             mfcc = torch.tensor(mfcc); mfcc = mfcc.unsqueeze(-1)
                             mel = torch.tensor(mel); mel = mel.unsqueeze(-1)
     
@@ -115,8 +115,9 @@ fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D,flip_input=Fa
                                    device='cuda',face_detector='blazeface') # default 'sfd'
 
 # loop over subsets
-a = 33; b = 36
+a = 0; b = 1
 print(a,b)
-video_process(file_list[a:b], path_in, path_out, fa)
+print(file_list[a:b])
+#video_process(file_list[a:b], path_in, path_out, fa)
 audio_process(file_list[a:b], path_in, path_out)
 

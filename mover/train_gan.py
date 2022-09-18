@@ -8,11 +8,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from dataprep_gan import prep
-from networks.gan_cnn_emo_2 import (Generator, Discriminator_RealFakeSeq,
+from networks.gan_cnn_emo_5 import (Generator, Discriminator_RealFakeSeq,
                         LossGrealfake, LossDSCreal, LossDSCfake,
                         lip_cossim, emo_cossim)
 
-batch_size = 32
+batch_size = 8
 epochs = 100
 log_nth = 10; plot_nth = 500
 
@@ -24,7 +24,7 @@ modelpath = 'models/'
 datapath = '/usr/stud/dasd/workspace/mead/processed/'
 tr_set = prep(datapath,'train')
 ev_set = prep(datapath,'eval')
-tr_loader = DataLoader(tr_set,batch_size=batch_size,shuffle=True,num_workers=6)
+tr_loader = DataLoader(tr_set,batch_size=batch_size,shuffle=True,num_workers=7)
 #ev_loader = DataLoader(ev_set,batch_size=batch_size,shuffle=False,num_workers=3)
 
 # writer = SummaryWriter() # comment=name
@@ -38,6 +38,7 @@ def train(G, D_rf, prTr_emo_model, prTr_CE, epoch): # D_ls
     for batch, (mel, mfcc, target_kp, _) in tr_batch:
         mfcc = mfcc.to(device); mel = mel.to(device)
         target_kp = target_kp.to(device)#; negative_kp = negative_kp.to(device)
+        print(mfcc.shape)
         
         with torch.no_grad():
             lab_emo, feat_emo = prTr_emo_model(mfcc)
@@ -117,7 +118,7 @@ crDreal = LossDSCreal(); crDfake = LossDSCfake()
 cr_emo = emo_cossim(device)#,prTr_CE)
 
 opG = optim.Adam(G.parameters(), lr=1e-4, betas=(0.9,0.999), eps=1e-8) # lstm 1e-4
-opD_rf = optim.Adam(D_rf.parameters(), lr=8e-5, betas=(0.9,0.999), eps=1e-8) # lstm 4e-5
+opD_rf = optim.Adam(D_rf.parameters(), lr=4e-5, betas=(0.9,0.999), eps=1e-8) # lstm 4e-5
 
 for epoch in range(epochs):
     train(G,D_rf,prTr_emo_model,prTr_CE,epoch) # D_ls

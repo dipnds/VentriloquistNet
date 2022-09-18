@@ -9,8 +9,8 @@ from loss.loss_generator import LossG
 epochs = 50
 # vis_nth = 5
 
-# device = torch.device('cpu')
-device = torch.device('cuda:0')
+device = torch.device('cpu')
+# device = torch.device('cuda:0')
 
 modelpath = 'models_bkup/ep70/'
 result_path = 'results/'
@@ -65,20 +65,38 @@ for epoch in range(epochs):
     lossD.backward(retain_graph=False)
     opD.step()
             
-    vis_img = torch.zeros(3,sketch_source.shape[2],sketch_source.shape[3])
-    vis_img[0,:,:] = vis_img[0,:,:] + sketch_source[0,:,:,:].detach().cpu()
-    vis_img[2,:,:] = vis_img[2,:,:] + sketch_target[0,:,:,:].detach().cpu()
-    vis_img = torch.cat((vis_img,
-                         (face_source[0,:,:,:].detach().cpu() * 255 + meta)/255),
-                         axis=1)
-    temp = torch.cat((
-                    (face_gt[0,:,:,:].detach().cpu() * 255 + meta)/255,
-                    (face_pred[0,:,:,:].detach().cpu() * 255 + meta)/255),
-                    axis=1)
-    vis_img = torch.cat((vis_img,temp),axis=2)
-    vis_img = vis_img.permute((1,2,0))
+    # vis_img = torch.zeros(3,sketch_source.shape[2],sketch_source.shape[3])
+    # vis_img[0,:,:] = vis_img[0,:,:] + sketch_source[0,:,:,:].detach().cpu()
+    # vis_img[2,:,:] = vis_img[2,:,:] + sketch_target[0,:,:,:].detach().cpu()
+    # vis_img = torch.cat((vis_img,
+    #                      (face_source[0,:,:,:].detach().cpu() * 255 + meta)/255),
+    #                      axis=1)
+    # temp = torch.cat((
+    #                 (face_gt[0,:,:,:].detach().cpu() * 255 + meta)/255,
+    #                 (face_pred[0,:,:,:].detach().cpu() * 255 + meta)/255),
+    #                 axis=1)
+    # vis_img = torch.cat((vis_img,temp),axis=2)
+    # vis_img = vis_img.permute((1,2,0))
     
-    plt.imshow(vis_img); plt.axis('off')
-    plt.savefig(result_path + 'ep' + str(epoch) + '.png', bbox_inches='tight', dpi=200)
+    # plt.imshow(vis_img); plt.axis('off')
+    # plt.savefig(result_path + 'ep' + str(epoch) + '.png', bbox_inches='tight', dpi=200)
+    
+    if epoch == 0:
+        
+        source = (face_source[0,:,:,:].detach().cpu() * 255 + meta)/255
+        plt.imshow(source.permute((1,2,0))); plt.axis('off')
+        plt.savefig(result_path + 'source.png', bbox_inches='tight', dpi=300)
+        plt.close()
+        
+        target = (face_gt[0,:,:,:].detach().cpu() * 255 + meta)/255
+        plt.imshow(target.permute((1,2,0))); plt.axis('off')
+        plt.savefig(result_path + 'target.png', bbox_inches='tight', dpi=300)
+        plt.close()
+        
+    pred = (face_pred[0,:,:,:].detach().cpu() * 255 + meta)/255
+    plt.imshow(pred.permute((1,2,0))); plt.axis('off')
+    plt.savefig(result_path + 'ep' + str(epoch) + '.png', bbox_inches='tight', dpi=300)
+    plt.close()
+    
     print(epoch)
     

@@ -46,10 +46,10 @@ class Generator(nn.Module):
             nn.BatchNorm2d(256),
             nn.LeakyReLU(negative_slope=0.1,inplace=True),
             nn.AvgPool2d((1,3)), # 10, 30
-            nn.Conv2d(256, 512, 3, padding=1), # 5, 30
+            nn.Conv2d(256, 512, 3, padding=1), # 10, 30
             nn.BatchNorm2d(512),
             nn.LeakyReLU(negative_slope=0.1,inplace=True),
-            nn.AvgPool2d((2,1)), # 10, 30
+            nn.AvgPool2d((2,1)), # 5, 30
             nn.Conv2d(512, 512, 3, padding=1), # 5, 30
             nn.BatchNorm2d(512),
             nn.LeakyReLU(negative_slope=0.1,inplace=True)
@@ -94,7 +94,7 @@ class Discriminator_RealFakeSeq(nn.Module):
     def __init__(self):
         super(Discriminator_RealFakeSeq,self).__init__()
         
-        self.seq_lstm_1 = nn.LSTM(136,32,bidirectional=True)
+        self.seq_lstm_1 = nn.LSTM(68*2,32,bidirectional=True)
         self.seq_lstm_2 = nn.LSTM(32*2,8,bidirectional=True)
         
         self.seq_fc = nn.Sequential(
